@@ -182,7 +182,7 @@ namespace AutoMapper.QueryableExtensions
             {
                 var result = ResolveExpression(propertyMap, request.SourceType, instanceParameter);
 
-                if (propertyMap.ExplicitExpansion &&
+                if (propertyMap.ExplicitExpansion.GetValueOrDefault() &&
                     !request.MembersToExpand.Contains(propertyMap.DestinationProperty))
                     continue;
 
