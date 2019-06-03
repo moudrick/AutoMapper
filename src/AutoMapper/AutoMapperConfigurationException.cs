@@ -1,14 +1,14 @@
+using System;
+using System.Linq;
+using System.Text;
+
 namespace AutoMapper
 {
-    using System;
-    using System.Linq;
-    using System.Text;
-
     public class AutoMapperConfigurationException : Exception
     {
         public TypeMapConfigErrors[] Errors { get; }
         public TypePair? Types { get; }
-        public PropertyMap PropertyMap { get; set; }
+        public IMemberMap MemberMap { get; set; }
 
         public class TypeMapConfigErrors
         {
@@ -34,15 +34,9 @@ namespace AutoMapper
         {
         }
 
-        public AutoMapperConfigurationException(TypeMapConfigErrors[] errors)
-        {
-            Errors = errors;
-        }
+        public AutoMapperConfigurationException(TypeMapConfigErrors[] errors) => Errors = errors;
 
-        public AutoMapperConfigurationException(TypePair types)
-        {
-            Types = types;
-        }
+        public AutoMapperConfigurationException(TypePair types) => Types = types;
 
         public override string Message
         {
@@ -52,23 +46,20 @@ namespace AutoMapper
                 {
                     var message =
                         string.Format(
-                            "The following property on {0} cannot be mapped: \n\t{2} \nAdd a custom mapping expression, ignore, add a custom resolver, or modify the destination type {1}.",
+                            "The following member on {0} cannot be mapped: \n\t{2} \nAdd a custom mapping expression, ignore, add a custom resolver, or modify the destination type {1}.",
                             Types?.DestinationType.FullName, Types?.DestinationType.FullName,
-                            PropertyMap?.DestinationProperty.Name);
+                            MemberMap?.DestinationName);
 
                     message += "\nContext:";
 
                     Exception exToUse = this;
                     while (exToUse != null)
                     {
-                        var configExc = exToUse as AutoMapperConfigurationException;
-                        if (configExc != null)
-                        { message += configExc.PropertyMap == null
-                            ? string.Format("\n\tMapping from type {1} to {0}", configExc.Types?.DestinationType.FullName,
-                                configExc.Types?.SourceType.FullName)
-                            : string.Format("\n\tMapping to property {0} from {2} to {1}",
-                                configExc.PropertyMap.DestinationProperty.Name,
-                                configExc.Types?.DestinationType.FullName, configExc.Types?.SourceType.FullName);
+                        if (exToUse is AutoMapperConfigurationException configExc)
+                        {
+                            message += configExc.MemberMap == null
+                              ? $"\n\tMapping from type {configExc.Types?.SourceType.FullName} to {configExc.Types?.DestinationType.FullName}"
+                              : $"\n\tMapping to member {configExc.MemberMap.DestinationName} from {configExc.Types?.SourceType.FullName} to {configExc.Types?.DestinationType.FullName}";
                         }
 
                         exToUse = exToUse.InnerException;
@@ -88,6 +79,10 @@ namespace AutoMapper
                                   error.TypeMap.DestinationType.FullName.Length + 5;
 
                         message.AppendLine(new string('=', len));
+                        if(error.TypeMap.IsConventionMap)
+                        {
+                            message.AppendLine("AutoMapper created this type map for you, but your types cannot be mapped using the current configuration.");
+                        }
                         message.AppendLine(error.TypeMap.SourceType.Name + " -> " + error.TypeMap.DestinationType.Name +
                                            " (" +
                                            error.TypeMap.ConfiguredMemberList + " member list)");

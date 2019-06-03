@@ -1,14 +1,15 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Linq.Expressions;
+using System.Reflection;
+using System.Runtime.CompilerServices;
+using AutoMapper.Configuration;
+using AutoMapper.Configuration.Conventions;
+using AutoMapper.Mappers;
+
 namespace AutoMapper
 {
-    using System;
-    using System.Collections.Generic;
-    using System.Linq;
-    using System.Reflection;
-    using System.Runtime.CompilerServices;
-    using Configuration;
-    using Configuration.Conventions;
-    using Mappers;
-
     /// <summary>
     ///     Provides a named configuration for maps. Naming conventions become scoped per profile.
     /// </summary>
@@ -25,14 +26,11 @@ namespace AutoMapper
         private readonly List<ITypeMapConfiguration> _openTypeMapConfigs = new List<ITypeMapConfiguration>();
         private readonly List<MethodInfo> _sourceExtensionMethods = new List<MethodInfo>();
         private readonly IList<ConditionalObjectMapper> _typeConfigurations = new List<ConditionalObjectMapper>();
-
         private readonly List<ITypeMapConfiguration> _typeMapConfigs = new List<ITypeMapConfiguration>();
+        private readonly List<ValueTransformerConfiguration> _valueTransformerConfigs = new List<ValueTransformerConfiguration>();
 
         protected Profile(string profileName)
-            : this()
-        {
-            ProfileName = profileName;
-        }
+            : this() => ProfileName = profileName;
 
         protected Profile()
         {
@@ -54,7 +52,9 @@ namespace AutoMapper
 
         public IMemberConfiguration DefaultMemberConfig => _memberConfigurations.First();
         public bool? ConstructorMappingEnabled { get; private set; }
+        [Obsolete("This has no effect and will be removed. Set CreateMissingTypeMaps on the global configuration.")]
         public bool? CreateMissingTypeMaps { get; set; }
+        public bool? ValidateInlineMaps { get; set; }
 
         IEnumerable<Action<PropertyMap, IMemberConfigurationExpression>> IProfileConfiguration.AllPropertyMapActions
             => _allPropertyMapActions;
@@ -66,6 +66,7 @@ namespace AutoMapper
         IEnumerable<IConditionalObjectMapper> IProfileConfiguration.TypeConfigurations => _typeConfigurations;
         IEnumerable<ITypeMapConfiguration> IProfileConfiguration.TypeMapConfigs => _typeMapConfigs;
         IEnumerable<ITypeMapConfiguration> IProfileConfiguration.OpenTypeMapConfigs => _openTypeMapConfigs;
+        IEnumerable<ValueTransformerConfiguration> IProfileConfiguration.ValueTransformers => _valueTransformerConfigs;
 
         public virtual string ProfileName { get; }
 
@@ -74,10 +75,13 @@ namespace AutoMapper
         public bool? EnableNullPropagationForQueryMapping { get; set; }
         public Func<PropertyInfo, bool> ShouldMapProperty { get; set; }
         public Func<FieldInfo, bool> ShouldMapField { get; set; }
+        public Func<MethodInfo, bool> ShouldMapMethod { get; set; }
+        public Func<ConstructorInfo, bool> ShouldUseConstructor { get; set; }
 
         public INamingConvention SourceMemberNamingConvention { get; set; }
         public INamingConvention DestinationMemberNamingConvention { get; set; }
 
+        public IList<ValueTransformerConfiguration> ValueTransformers => _valueTransformerConfigs;
 
         public void DisableConstructorMapping()
         {
@@ -98,20 +102,14 @@ namespace AutoMapper
             });
         }
 
-        public IMappingExpression<TSource, TDestination> CreateMap<TSource, TDestination>()
-        {
-            return CreateMap<TSource, TDestination>(MemberList.Destination);
-        }
+        public IMappingExpression<TSource, TDestination> CreateMap<TSource, TDestination>() => 
+            CreateMap<TSource, TDestination>(MemberList.Destination);
 
-        public IMappingExpression<TSource, TDestination> CreateMap<TSource, TDestination>(MemberList memberList)
-        {
-            return CreateMappingExpression<TSource, TDestination>(memberList);
-        }
+        public IMappingExpression<TSource, TDestination> CreateMap<TSource, TDestination>(MemberList memberList) => 
+            CreateMappingExpression<TSource, TDestination>(memberList);
 
-        public IMappingExpression CreateMap(Type sourceType, Type destinationType)
-        {
-            return CreateMap(sourceType, destinationType, MemberList.Destination);
-        }
+        public IMappingExpression CreateMap(Type sourceType, Type destinationType) => 
+            CreateMap(sourceType, destinationType, MemberList.Destination);
 
         public IMappingExpression CreateMap(Type sourceType, Type destinationType, MemberList memberList)
         {
@@ -188,18 +186,8 @@ namespace AutoMapper
                     .Where(
                         m =>
                             m.IsStatic && m.IsDefined(typeof(ExtensionAttribute), false) &&
-                            (m.GetParameters().Length == 1)));
+                            m.GetParameters().Length == 1));
         }
-
-        [Obsolete(
-             "Create a constructor and configure inside of your profile's constructor instead. Will be removed in 6.0")]
-        protected virtual void Configure()
-        {
-        }
-
-#pragma warning disable 618 
-        internal void Initialize() => Configure();
-#pragma warning restore 618
 
         private IMappingExpression<TSource, TDestination> CreateMappingExpression<TSource, TDestination>(
             MemberList memberList)

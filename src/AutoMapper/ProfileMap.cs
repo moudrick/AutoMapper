@@ -1,14 +1,16 @@
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
+using System.Linq.Expressions;
+using System.Reflection;
+using AutoMapper.Configuration;
+using AutoMapper.Configuration.Conventions;
+using AutoMapper.Mappers;
+using AutoMapper.QueryableExtensions.Impl;
+
 namespace AutoMapper
 {
-    using System;
-    using System.Collections.Generic;
-    using System.Diagnostics;
-    using System.Linq;
-    using System.Reflection;
-    using Configuration;
-    using Configuration.Conventions;
-    using Mappers;
-
     [DebuggerDisplay("{Name}")]
     public class ProfileMap
     {
@@ -33,15 +35,16 @@ namespace AutoMapper
             ConstructorMappingEnabled = profile.ConstructorMappingEnabled ?? configuration?.ConstructorMappingEnabled ?? true;
             ShouldMapField = profile.ShouldMapField ?? configuration?.ShouldMapField ?? (p => p.IsPublic());
             ShouldMapProperty = profile.ShouldMapProperty ?? configuration?.ShouldMapProperty ?? (p => p.IsPublic());
-            CreateMissingTypeMaps = profile.CreateMissingTypeMaps ?? configuration?.CreateMissingTypeMaps ?? false;
+            ShouldMapMethod = profile.ShouldMapMethod ?? configuration?.ShouldMapMethod ?? (p => true);
+            ShouldUseConstructor = profile.ShouldUseConstructor ?? configuration?.ShouldUseConstructor ?? (c => true);
+            CreateMissingTypeMaps = profile.CreateMissingTypeMaps ?? configuration?.CreateMissingTypeMaps ?? true;
+            ValidateInlineMaps = profile.ValidateInlineMaps ?? configuration?.ValidateInlineMaps ?? true;
 
             TypeConfigurations = profile.TypeConfigurations
                 .Concat(configuration?.TypeConfigurations ?? Enumerable.Empty<IConditionalObjectMapper>())
-                .Concat(CreateMissingTypeMaps
-                    ? Enumerable.Repeat(new ConditionalObjectMapper { Conventions = { tp => tp.SourceType != typeof(object) && tp.DestinationType != typeof(object) } }, 1)
-                    : Enumerable.Empty<IConditionalObjectMapper>())
                 .ToArray();
 
+            ValueTransformers = profile.ValueTransformers.Concat(configuration?.ValueTransformers ?? Enumerable.Empty<ValueTransformerConfiguration>()).ToArray();
 
             MemberConfigurations = profile.MemberConfigurations.ToArray();
 
@@ -73,14 +76,18 @@ namespace AutoMapper
             _openTypeMapConfigs = profile.OpenTypeMapConfigs.ToArray();
         }
 
+
         public bool AllowNullCollections { get; }
         public bool AllowNullDestinationValues { get; }
         public bool ConstructorMappingEnabled { get; }
         public bool CreateMissingTypeMaps { get; }
+        public bool ValidateInlineMaps { get; }
         public bool EnableNullPropagationForQueryMapping { get; }
         public string Name { get; }
         public Func<FieldInfo, bool> ShouldMapField { get; }
         public Func<PropertyInfo, bool> ShouldMapProperty { get; }
+        public Func<MethodInfo, bool> ShouldMapMethod { get; }
+        public Func<ConstructorInfo, bool> ShouldUseConstructor { get; }
 
         public IEnumerable<Action<PropertyMap, IMemberConfigurationExpression>> AllPropertyMapActions { get; }
         public IEnumerable<Action<TypeMap, IMappingExpression>> AllTypeMapActions { get; }
@@ -90,58 +97,53 @@ namespace AutoMapper
         public IEnumerable<IConditionalObjectMapper> TypeConfigurations { get; }
         public IEnumerable<string> Prefixes { get; }
         public IEnumerable<string> Postfixes { get; }
+        public IEnumerable<ValueTransformerConfiguration> ValueTransformers { get; }
 
-        public TypeDetails CreateTypeDetails(Type type)
-        {
-            return _typeDetails.GetOrAdd(type);
-        }
+        public TypeDetails CreateTypeDetails(Type type) => _typeDetails.GetOrAdd(type);
 
-        private TypeDetails TypeDetailsFactory(Type type)
-        {
-            return new TypeDetails(type, this);
-        }
+        private TypeDetails TypeDetailsFactory(Type type) => new TypeDetails(type, this);
 
-        public void Register(TypeMapRegistry typeMapRegistry)
+        public void Register(IConfigurationProvider configurationProvider)
         {
-            foreach (var config in _typeMapConfigs.Where(c => !c.IsOpenGeneric))
+            foreach (var config in _typeMapConfigs)
             {
-                BuildTypeMap(typeMapRegistry, config);
+                BuildTypeMap(configurationProvider, config);
 
                 if (config.ReverseTypeMap != null)
                 {
-                    BuildTypeMap(typeMapRegistry, config.ReverseTypeMap);
+                    BuildTypeMap(configurationProvider, config.ReverseTypeMap);
                 }
             }
         }
 
-        public void Configure(TypeMapRegistry typeMapRegistry)
+        public void Configure(IConfigurationProvider configurationProvider)
         {
-            foreach (var typeMapConfiguration in _typeMapConfigs.Where(c => !c.IsOpenGeneric))
+            foreach (var typeMapConfiguration in _typeMapConfigs)
             {
-                Configure(typeMapRegistry, typeMapConfiguration);
+                Configure(typeMapConfiguration, configurationProvider);
                 if (typeMapConfiguration.ReverseTypeMap != null)
                 {
-                    Configure(typeMapRegistry, typeMapConfiguration.ReverseTypeMap);
+                    Configure(typeMapConfiguration.ReverseTypeMap, configurationProvider);
                 }
             }
         }
 
-        private void BuildTypeMap(TypeMapRegistry typeMapRegistry, ITypeMapConfiguration config)
+        private void BuildTypeMap(IConfigurationProvider configurationProvider, ITypeMapConfiguration config)
         {
-            var typeMap = _typeMapFactory.CreateTypeMap(config.SourceType, config.DestinationType, this, config.MemberList);
+            var typeMap = _typeMapFactory.CreateTypeMap(config.SourceType, config.DestinationType, this);
 
             config.Configure(typeMap);
 
-            typeMapRegistry.RegisterTypeMap(typeMap);
+            configurationProvider.RegisterTypeMap(typeMap);
         }
 
-        private void Configure(TypeMapRegistry typeMapRegistry, ITypeMapConfiguration typeMapConfiguration)
+        private void Configure(ITypeMapConfiguration typeMapConfiguration, IConfigurationProvider configurationProvider)
         {
-            var typeMap = typeMapRegistry.GetTypeMap(typeMapConfiguration.Types);
-            Configure(typeMapRegistry, typeMap);
+            var typeMap = configurationProvider.FindTypeMapFor(typeMapConfiguration.Types);
+            Configure(typeMap, configurationProvider);
         }
 
-        private void Configure(TypeMapRegistry typeMapRegistry, TypeMap typeMap)
+        private void Configure(TypeMap typeMap, IConfigurationProvider configurationProvider)
         {
             foreach (var action in AllTypeMapActions)
             {
@@ -154,9 +156,9 @@ namespace AutoMapper
 
             foreach (var action in AllPropertyMapActions)
             {
-                foreach (var propertyMap in typeMap.GetPropertyMaps())
+                foreach (var propertyMap in typeMap.PropertyMaps)
                 {
-                    var memberExpression = new MappingExpression.MemberConfigurationExpression(propertyMap.DestinationProperty, typeMap.SourceType);
+                    var memberExpression = new MappingExpression.MemberConfigurationExpression(propertyMap.DestinationMember, typeMap.SourceType);
 
                     action(propertyMap, memberExpression);
 
@@ -164,58 +166,58 @@ namespace AutoMapper
                 }
             }
 
-            ApplyBaseMaps(typeMapRegistry, typeMap, typeMap);
-            ApplyDerivedMaps(typeMapRegistry, typeMap, typeMap);
+            ApplyBaseMaps(typeMap, typeMap, configurationProvider);
+            ApplyDerivedMaps(typeMap, typeMap, configurationProvider);
+            ApplyMemberMaps(typeMap, configurationProvider);
         }
 
-        public TypeMap ConfigureConventionTypeMap(TypeMapRegistry typeMapRegistry, TypePair types)
-        {
-            if (!TypeConfigurations.Any(c => c.IsMatch(types)))
-                return null;
+        public bool IsConventionMap(TypePair types) => TypeConfigurations.Any(c => c.IsMatch(types));
 
-            var typeMap = _typeMapFactory.CreateTypeMap(types.SourceType, types.DestinationType, this, MemberList.Destination);
+        public TypeMap CreateConventionTypeMap(TypePair types, IConfigurationProvider configurationProvider)
+        {
+            var typeMap = _typeMapFactory.CreateTypeMap(types.SourceType, types.DestinationType, this);
+
+            typeMap.IsConventionMap = true;
 
             var config = new MappingExpression(typeMap.Types, typeMap.ConfiguredMemberList);
 
             config.Configure(typeMap);
 
-            Configure(typeMapRegistry, typeMap);
+            Configure(typeMap, configurationProvider);
 
             return typeMap;
         }
 
-        public TypeMap ConfigureClosedGenericTypeMap(TypeMapRegistry typeMapRegistry, TypePair closedTypes, TypePair requestedTypes)
+        public TypeMap CreateInlineMap(TypePair types, IConfigurationProvider configurationProvider)
         {
-            var openMapConfig = _openTypeMapConfigs
-                .SelectMany(tm => tm.ReverseTypeMap == null ? new[] { tm } : new[] { tm, tm.ReverseTypeMap })
-                //.Where(tm => tm.IsOpenGeneric)
-                .Where(tm =>
-                    tm.Types.SourceType.GetGenericTypeDefinitionIfGeneric() == closedTypes.SourceType.GetGenericTypeDefinitionIfGeneric() &&
-                    tm.Types.DestinationType.GetGenericTypeDefinitionIfGeneric() == closedTypes.DestinationType.GetGenericTypeDefinitionIfGeneric())
-                .OrderByDescending(tm => tm.DestinationType == closedTypes.DestinationType) // Favor more specific destination matches,
-                .ThenByDescending(tm => tm.SourceType == closedTypes.SourceType) // then more specific source matches
-                .FirstOrDefault();
+            var typeMap = _typeMapFactory.CreateTypeMap(types.SourceType, types.DestinationType, this);
 
-            if (openMapConfig == null)
-                return null;
+            typeMap.IsConventionMap = true;
 
-            var closedMap = _typeMapFactory.CreateTypeMap(requestedTypes.SourceType, requestedTypes.DestinationType, this, openMapConfig.MemberList);
+            Configure(typeMap, configurationProvider);
 
+            return typeMap;
+        }
+
+        public TypeMap CreateClosedGenericTypeMap(ITypeMapConfiguration openMapConfig, TypePair closedTypes, IConfigurationProvider configurationProvider)
+        {
+            var closedMap = _typeMapFactory.CreateTypeMap(closedTypes.SourceType, closedTypes.DestinationType, this);
+            closedMap.IsClosedGeneric = true;
             openMapConfig.Configure(closedMap);
 
-            Configure(typeMapRegistry, closedMap);
+            Configure(closedMap, configurationProvider);
 
-            if (closedMap.TypeConverterType != null)
+            if(closedMap.TypeConverterType != null)
             {
                 var typeParams =
-                    (openMapConfig.SourceType.IsGenericTypeDefinition() ? closedTypes.SourceType.GetGenericArguments() : new Type[0])
+                    (openMapConfig.SourceType.IsGenericTypeDefinition() ? closedTypes.SourceType.GetGenericArguments() : Type.EmptyTypes)
                         .Concat
-                    (openMapConfig.DestinationType.IsGenericTypeDefinition() ? closedTypes.DestinationType.GetGenericArguments() : new Type[0]);
+                    (openMapConfig.DestinationType.IsGenericTypeDefinition() ? closedTypes.DestinationType.GetGenericArguments() : Type.EmptyTypes);
 
                 var neededParameters = closedMap.TypeConverterType.GetGenericParameters().Length;
                 closedMap.TypeConverterType = closedMap.TypeConverterType.MakeGenericType(typeParams.Take(neededParameters).ToArray());
             }
-            if (closedMap.DestinationTypeOverride?.IsGenericTypeDefinition() == true)
+            if(closedMap.DestinationTypeOverride?.IsGenericTypeDefinition() == true)
             {
                 var neededParameters = closedMap.DestinationTypeOverride.GetGenericParameters().Length;
                 closedMap.DestinationTypeOverride = closedMap.DestinationTypeOverride.MakeGenericType(closedTypes.DestinationType.GetGenericArguments().Take(neededParameters).ToArray());
@@ -223,24 +225,61 @@ namespace AutoMapper
             return closedMap;
         }
 
-
-        private static void ApplyBaseMaps(TypeMapRegistry typeMapRegistry, TypeMap derivedMap, TypeMap currentMap)
+        public ITypeMapConfiguration GetGenericMap(TypePair closedTypes)
         {
-            foreach (var baseMap in currentMap.IncludedBaseTypes.Select(typeMapRegistry.GetTypeMap).Where(baseMap => baseMap != null))
+            return _openTypeMapConfigs
+                .SelectMany(tm => tm.ReverseTypeMap == null ? new[] { tm } : new[] { tm, tm.ReverseTypeMap })
+                .Where(tm =>
+                    tm.Types.SourceType.GetGenericTypeDefinitionIfGeneric() == closedTypes.SourceType.GetGenericTypeDefinitionIfGeneric() &&
+                    tm.Types.DestinationType.GetGenericTypeDefinitionIfGeneric() == closedTypes.DestinationType.GetGenericTypeDefinitionIfGeneric())
+                .OrderByDescending(tm => tm.DestinationType == closedTypes.DestinationType) // Favor more specific destination matches,
+                .ThenByDescending(tm => tm.SourceType == closedTypes.SourceType) // then more specific source matches
+                .FirstOrDefault();
+        }
+
+        private void ApplyBaseMaps(TypeMap derivedMap, TypeMap currentMap, IConfigurationProvider configurationProvider)
+        {
+            foreach (var baseMap in configurationProvider.GetIncludedTypeMaps(currentMap.IncludedBaseTypes))
             {
                 baseMap.IncludeDerivedTypes(currentMap.SourceType, currentMap.DestinationType);
-                derivedMap.ApplyInheritedMap(baseMap);
-                ApplyBaseMaps(typeMapRegistry, derivedMap, baseMap);
+                derivedMap.AddInheritedMap(baseMap);
+                ApplyBaseMaps(derivedMap, baseMap, configurationProvider);
             }
         }
 
-        private void ApplyDerivedMaps(TypeMapRegistry typeMapRegistry, TypeMap baseMap, TypeMap typeMap)
+        private void ApplyMemberMaps(TypeMap mainMap, IConfigurationProvider configurationProvider)
         {
-            foreach (var inheritedTypeMap in typeMap.IncludedDerivedTypes.Select(typeMapRegistry.GetTypeMap).Where(map => map != null))
+            AddMemberMaps(mainMap.IncludedMembers, mainMap, configurationProvider);
+            AddMemberMaps(mainMap.GetUntypedIncludedMembers(), mainMap, configurationProvider);
+        }
+
+        private void AddMemberMaps(LambdaExpression[] includedMembers, TypeMap mainMap, IConfigurationProvider configurationProvider)
+        {
+            foreach(var includedMember in configurationProvider.GetIncludedTypeMaps(includedMembers.Select(m => new TypePair(m.Body.Type, mainMap.DestinationType))).Zip(includedMembers, (memberMap, expression) => new IncludedMember(memberMap, expression)))
             {
-                inheritedTypeMap.ApplyInheritedMap(baseMap);
-                ApplyDerivedMaps(typeMapRegistry, baseMap, inheritedTypeMap);
+                mainMap.AddMemberMap(includedMember);
             }
         }
+
+        private void ApplyDerivedMaps(TypeMap baseMap, TypeMap typeMap, IConfigurationProvider configurationProvider)
+        {
+            foreach (var derivedMap in configurationProvider.GetIncludedTypeMaps(typeMap.IncludedDerivedTypes))
+            {
+                derivedMap.IncludeBaseTypes(typeMap.SourceType, typeMap.DestinationType);
+                derivedMap.AddInheritedMap(baseMap);
+                ApplyDerivedMaps(baseMap, derivedMap, configurationProvider);
+            }
+        }
+    }
+
+    public readonly struct IncludedMember
+    {
+        public IncludedMember(TypeMap typeMap, LambdaExpression memberExpression)
+        {
+            TypeMap = typeMap;
+            MemberExpression = memberExpression;
+        }
+        public TypeMap TypeMap { get; }
+        public LambdaExpression MemberExpression { get; }
     }
 }

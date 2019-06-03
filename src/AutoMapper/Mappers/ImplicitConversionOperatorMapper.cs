@@ -1,11 +1,10 @@
+using System.Linq;
 using System.Linq.Expressions;
+using System.Reflection;
+using AutoMapper.Configuration;
 
 namespace AutoMapper.Mappers
 {
-    using System.Linq;
-    using System.Reflection;
-    using Configuration;
-
     public class ImplicitConversionOperatorMapper : IObjectMapper
     {
         public bool IsMatch(TypePair context)
@@ -18,10 +17,6 @@ namespace AutoMapper.Mappers
         private static MethodInfo GetImplicitConversionOperator(TypePair context)
         {
             var destinationType = context.DestinationType;
-            if(destinationType.IsNullableType())
-            {
-                destinationType = destinationType.GetTypeOfNullable();
-            }
             var sourceTypeMethod = context.SourceType
                 .GetDeclaredMethods()
                 .FirstOrDefault(mi => mi.IsPublic && mi.IsStatic && mi.Name == "op_Implicit" && mi.ReturnType == destinationType);
@@ -30,7 +25,8 @@ namespace AutoMapper.Mappers
         }
 
 
-        public Expression MapExpression(TypeMapRegistry typeMapRegistry, IConfigurationProvider configurationProvider, PropertyMap propertyMap, Expression sourceExpression, Expression destExpression, Expression contextExpression)
+        public Expression MapExpression(IConfigurationProvider configurationProvider, ProfileMap profileMap,
+            IMemberMap memberMap, Expression sourceExpression, Expression destExpression, Expression contextExpression)
         {
             var implicitOperator = GetImplicitConversionOperator(new TypePair(sourceExpression.Type, destExpression.Type));
             return Expression.Call(null, implicitOperator, sourceExpression);

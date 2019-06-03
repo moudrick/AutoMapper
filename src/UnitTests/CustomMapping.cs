@@ -2,7 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using Should;
+using Shouldly;
 using Xunit;
 
 namespace AutoMapper.UnitTests
@@ -33,15 +33,15 @@ namespace AutoMapper.UnitTests
 
         protected override MapperConfiguration Configuration => new MapperConfiguration(cfg =>
         {
-            cfg.CreateMap<Source1, Destination>().ForMember(dest => dest.Value, opt => opt.ResolveUsing<MyTestResolver>());
-            cfg.CreateMap<Source2, Destination>().ForMember(dest => dest.Value, opt => opt.ResolveUsing<MyTestResolver>());
+            cfg.CreateMap<Source1, Destination>().ForMember(dest => dest.Value, opt => opt.MapFrom<MyTestResolver>());
+            cfg.CreateMap<Source2, Destination>().ForMember(dest => dest.Value, opt => opt.MapFrom<MyTestResolver>());
         });
 
         [Fact]
         public void Should_map_ok()
         {
-            Mapper.Map<Destination>(new Source1()).Value.ShouldEqual("source1");
-            Mapper.Map<Destination>(new Source2()).Value.ShouldEqual("source2");
+            Mapper.Map<Destination>(new Source1()).Value.ShouldBe("source1");
+            Mapper.Map<Destination>(new Source2()).Value.ShouldBe("source2");
         }
     }
 
@@ -73,7 +73,7 @@ namespace AutoMapper.UnitTests
 
         protected override MapperConfiguration Configuration => new MapperConfiguration(cfg =>
         {
-            cfg.CreateMap<Source, Destination>().ForMember(d => d.Value, o => o.ResolveUsing(new Resolver(), s=>s.SValue));
+            cfg.CreateMap<Source, Destination>().ForMember(d => d.Value, o => o.MapFrom(new Resolver(), s=>s.SValue));
         });
 
         protected override void Because_of()
@@ -84,7 +84,7 @@ namespace AutoMapper.UnitTests
         [Fact]
         public void Should_map_ok()
         {
-            _destination.Value.ShouldEqual("Resolved");
+            _destination.Value.ShouldBe("Resolved");
         }
     }
 
@@ -250,7 +250,7 @@ namespace AutoMapper.UnitTests
         [Fact]
         public void Should_map_ok()
         {
-            _viewModel.SubModelId.ShouldEqual(0);
+            _viewModel.SubModelId.ShouldBe(0);
         }
     }
 
@@ -299,7 +299,7 @@ namespace AutoMapper.UnitTests
             {
                 return new MapperConfiguration(c =>
                 {
-                    c.CreateMap<Source, Destination>().ForMember(d => d.Value, o => o.UseValue(_guid));
+                    c.CreateMap<Source, Destination>().ForMember(d => d.Value, o => o.MapFrom(src => _guid));
                 });
             }
         }
@@ -312,7 +312,7 @@ namespace AutoMapper.UnitTests
         [Fact]
         public void Should_map_ok()
         {
-            _destination.Value.ShouldEqual(_guid);
+            _destination.Value.ShouldBe(_guid);
         }
     }
 
@@ -337,7 +337,7 @@ namespace AutoMapper.UnitTests
             {
                 return new MapperConfiguration(c =>
                 {
-                    c.CreateMap<Source, Destination>().ForMember(d => d.Value, o => o.ResolveUsing<Resolver>());//.ForMember(d => d.Value, o => o.ResolveUsing(s=>_guid));
+                    c.CreateMap<Source, Destination>().ForMember(d => d.Value, o => o.MapFrom<Resolver>());
                 });
             }
         }
@@ -358,7 +358,7 @@ namespace AutoMapper.UnitTests
         [Fact]
         public void Should_map_ok()
         {
-            _destination.Value.ShouldEqual(_guid);
+            _destination.Value.ShouldBe(_guid);
         }
     }
 
@@ -381,7 +381,7 @@ namespace AutoMapper.UnitTests
             {
                 return new MapperConfiguration(c =>
                 {
-                    c.CreateMap<Source, Destination>().ForMember(d => d.Value, o => o.ResolveUsing(s => { Throw(); return 0; }));
+                    c.CreateMap<Source, Destination>().ForMember(d => d.Value, o => o.MapFrom((s, d) => { Throw(); return 0; }));
                 });
             }
         }
@@ -394,11 +394,11 @@ namespace AutoMapper.UnitTests
         [Fact]
         public void Should_propagate_exception()
         {
-            new Action(()=>Mapper.Map<Destination>(new Source())).ShouldThrow<AutoMapperMappingException>(e=>e.InnerException.ShouldEqual(_ex));
+            new Action(()=>Mapper.Map<Destination>(new Source())).ShouldThrowException<AutoMapperMappingException>(e=>e.InnerException.ShouldBe(_ex));
         }
     }
 
-    public class When_mapping_different_types_with_UseValue : AutoMapperSpecBase
+    public class When_mapping_different_types_with_explicit_value : AutoMapperSpecBase
     {
         Destination _destination;
 
@@ -428,7 +428,7 @@ namespace AutoMapper.UnitTests
                 return new MapperConfiguration(c =>
                 {
                     c.CreateMap<InnerSource, InnerDestination>();
-                    c.CreateMap<Source, Destination>().ForMember(d => d.Value, o => o.UseValue(new InnerSource { IntValue = 15 }));
+                    c.CreateMap<Source, Destination>().ForMember(d => d.Value, o => o.MapFrom(src => new InnerSource { IntValue = 15 }));
                 });
             }
         }
@@ -441,7 +441,7 @@ namespace AutoMapper.UnitTests
         [Fact]
         public void Should_work()
         {
-            _destination.Value.IntValue.ShouldEqual(15);
+            _destination.Value.IntValue.ShouldBe(15);
         }
     }
 
@@ -476,7 +476,7 @@ namespace AutoMapper.UnitTests
                 return new MapperConfiguration(c =>
                 {
                     c.CreateMap<InnerSource, InnerDestination>();
-                    c.CreateMap<Source, Destination>().ForMember(d => d.Value, o => o.ResolveUsing(s => s.ObjectValue));
+                    c.CreateMap<Source, Destination>().ForMember(d => d.Value, o => o.MapFrom(s => s.ObjectValue));
                 });
             }
         }
@@ -489,7 +489,7 @@ namespace AutoMapper.UnitTests
         [Fact]
         public void Should_work()
         {
-            _destination.Value.IntValue.ShouldEqual(15);
+            _destination.Value.IntValue.ShouldBe(15);
         }
     }
 
@@ -510,7 +510,7 @@ namespace AutoMapper.UnitTests
         {
             get
             {
-                return new MapperConfiguration(c => c.CreateMap<Source, Destination>().ForMember(d => d.Value, o => o.UseValue(new object())));
+                return new MapperConfiguration(c => c.CreateMap<Source, Destination>().ForMember(d => d.Value, o => o.MapFrom(src => new object())));
             }
         }
 
@@ -522,7 +522,7 @@ namespace AutoMapper.UnitTests
         [Fact]
         public void Should_use_to_string()
         {
-            _destination.Value.ShouldEqual("System.Object");
+            _destination.Value.ShouldBe("System.Object");
         }
     }
 
@@ -540,13 +540,8 @@ namespace AutoMapper.UnitTests
             public string Value { get; set; }
         }
 
-        protected override MapperConfiguration Configuration
-        {
-            get
-            {
-                return new MapperConfiguration(c => c.CreateMap<Source, Destination>().ForMember(d=>d.Value, o=>o.ResolveUsing(s=>s.ObjectValue)));
-            }
-        }
+        protected override MapperConfiguration Configuration { get; }
+            = new MapperConfiguration(c => c.CreateMap<Source, Destination>().ForMember(d=>d.Value, o=>o.MapFrom(s=>s.ObjectValue)));
 
         protected override void Because_of()
         {
@@ -556,7 +551,7 @@ namespace AutoMapper.UnitTests
         [Fact]
         public void Should_use_to_string()
         {
-            _destination.Value.ShouldEqual("System.Object");
+            _destination.Value.ShouldBe("System.Object");
         }
     }
 
@@ -601,9 +596,9 @@ namespace AutoMapper.UnitTests
         protected override MapperConfiguration Configuration { get; } = new MapperConfiguration(cfg =>
         {
             cfg.CreateMap<ModelObject, ModelDto>()
-                .ForMember(dto => dto.Value, opt => opt.ResolveUsing<CustomResolver>())
-                .ForMember(dto => dto.Value2, opt => opt.ResolveUsing(new CustomResolver2()))
-                .ForMember(dto => dto.Value5, opt => opt.ResolveUsing(src => src.Value5 + 5));
+                .ForMember(dto => dto.Value, opt => opt.MapFrom<CustomResolver>())
+                .ForMember(dto => dto.Value2, opt => opt.MapFrom(new CustomResolver2()))
+                .ForMember(dto => dto.Value5, opt => opt.MapFrom(src => src.Value5 + 5));
 
         });
 
@@ -616,25 +611,25 @@ namespace AutoMapper.UnitTests
         [Fact]
         public void Should_ignore_the_mapping_for_normal_members()
         {
-            _result.Value3.ShouldEqual(42);
+            _result.Value3.ShouldBe(42);
         }
 
         [Fact]
         public void Should_use_the_custom_generic_mapping_for_custom_dto_members()
         {
-            _result.Value.ShouldEqual(43);
+            _result.Value.ShouldBe(43);
         }
 
         [Fact]
         public void Should_use_the_instance_based_mapping_for_custom_dto_members()
         {
-            _result.Value2.ShouldEqual(44);
+            _result.Value2.ShouldBe(44);
         }
 
         [Fact]
         public void Should_use_the_func_based_mapping_for_custom_dto_members()
         {
-            _result.Value5.ShouldEqual(47);
+            _result.Value5.ShouldBe(47);
         }
     }
 
@@ -668,7 +663,7 @@ namespace AutoMapper.UnitTests
         protected override MapperConfiguration Configuration { get; } = new MapperConfiguration(cfg =>
         {
             cfg.CreateMap<ModelObject, ModelDto>()
-                .ForMember(dto => dto.SomeValue, opt => opt.ResolveUsing<CustomResolver, ModelSubObject>(m => m.Sub));
+                .ForMember(dto => dto.SomeValue, opt => opt.MapFrom<CustomResolver, ModelSubObject>(m => m.Sub));
         });
 
         [Fact]
@@ -683,7 +678,7 @@ namespace AutoMapper.UnitTests
             };
 
             _result = Mapper.Map<ModelObject, ModelDto>(model);
-            _result.SomeValue.ShouldEqual(47);
+            _result.SomeValue.ShouldBe(47);
         }
     }
 
@@ -714,7 +709,7 @@ namespace AutoMapper.UnitTests
         {
             cfg.CreateMap<Source, Dest>()
                 .ForMember(dto => dto.SomeValue,
-                    opt => opt.ResolveUsing<CustomResolver, int>(m => m.SomeOtherValue));
+                    opt => opt.MapFrom<CustomResolver, int>(m => m.SomeOtherValue));
 
         });
 
@@ -732,7 +727,7 @@ namespace AutoMapper.UnitTests
         [Fact]
         public void Should_override_the_existing_match_to_the_new_custom_resolved_member()
         {
-            _result.SomeValue.ShouldEqual(58);
+            _result.SomeValue.ShouldBe(58);
         }
     }
 
@@ -770,7 +765,7 @@ namespace AutoMapper.UnitTests
         [Fact]
         public void Should_override_the_existing_match_to_the_new_custom_resolved_member()
         {
-            _result.Type.ShouldEqual(5);
+            _result.Type.ShouldBe(5);
         }
     }
 
@@ -813,7 +808,7 @@ namespace AutoMapper.UnitTests
         {
             cfg.CreateMap<Source, Destination>()
                 .ForMember(s => s.Value,
-                    opt => opt.ResolveUsing(new CustomResolver(15), src => src.Value));
+                    opt => opt.MapFrom(new CustomResolver(15), src => src.Value));
 
         });
 
@@ -830,7 +825,7 @@ namespace AutoMapper.UnitTests
         [Fact]
         public void Should_use_the_custom_constructor()
         {
-            _dest.Value.ShouldEqual(25);
+            _dest.Value.ShouldBe(25);
         }
     }
 
@@ -873,7 +868,7 @@ namespace AutoMapper.UnitTests
         {
             cfg.CreateMap<Source, Destination>()
                 .ForMember(s => s.Value,
-                    opt => opt.ResolveUsing(new CustomResolver(15), s => s.Value)
+                    opt => opt.MapFrom(new CustomResolver(15), s => s.Value)
                 );
 
         });
@@ -890,7 +885,7 @@ namespace AutoMapper.UnitTests
         [Fact]
         public void Should_use_the_custom_constructor()
         {
-            _dest.Value.ShouldEqual(25);
+            _dest.Value.ShouldBe(25);
         }
     }
 
@@ -926,7 +921,7 @@ namespace AutoMapper.UnitTests
                 .ConvertUsing(s => new Destination { Value = s.Value + 10 }));
 
             _dest = config.CreateMapper().Map<Source, Destination>(_source);
-            _dest.Value.ShouldEqual(20);
+            _dest.Value.ShouldBe(20);
         }
 
         [Fact]
@@ -937,7 +932,7 @@ namespace AutoMapper.UnitTests
                 .ConvertUsing(s => new Destination { Value = s.Value + 10 }));
 
             _dest = config.CreateMapper().Map<Source, Destination>(_source);
-            _dest.Value.ShouldEqual(20);
+            _dest.Value.ShouldBe(20);
         }
     }
 
@@ -970,10 +965,10 @@ namespace AutoMapper.UnitTests
         public void Should_use_the_custom_translator()
         {
             var config = new MapperConfiguration(cfg => cfg.CreateMap<Source, Destination>()
-                .ProjectUsing(s => new Destination { Value = s.Value + 10 }));
+                .ConvertUsing(s => new Destination { Value = s.Value + 10 }));
 
             _dest = config.CreateMapper().Map<Source, Destination>(_source);
-            _dest.Value.ShouldEqual(20);
+            _dest.Value.ShouldBe(20);
         }
 
         [Fact]
@@ -981,10 +976,10 @@ namespace AutoMapper.UnitTests
         {
             var config = new MapperConfiguration(cfg => cfg.CreateMap<Source, Destination>()
                 .ForMember(dest => dest.Value, opt => opt.MapFrom(src => src.AnotherValue))
-                .ProjectUsing(s => new Destination { Value = s.Value + 10 }));
+                .ConvertUsing(s => new Destination { Value = s.Value + 10 }));
 
             _dest = config.CreateMapper().Map<Source, Destination>(_source);
-            _dest.Value.ShouldEqual(20);
+            _dest.Value.ShouldBe(20);
         }
     }
 
@@ -1025,7 +1020,7 @@ namespace AutoMapper.UnitTests
                 .ConvertUsing(s => new Destination { Value = s.Value + 10 }));
 
             _dest = config.CreateMapper().Map(_source, _dest);
-            _dest.Value.ShouldEqual(20);
+            _dest.Value.ShouldBe(20);
         }
 
         [Fact]
@@ -1036,7 +1031,7 @@ namespace AutoMapper.UnitTests
                 .ConvertUsing(s => new Destination { Value = s.Value + 10 }));
 
             _dest = config.CreateMapper().Map(_source, _dest);
-            _dest.Value.ShouldEqual(20);
+            _dest.Value.ShouldBe(20);
         }
     }
 
@@ -1080,7 +1075,7 @@ namespace AutoMapper.UnitTests
                 .ConvertUsing<Converter>());
 
             _dest = config.CreateMapper().Map<Source, Destination>(_source);
-            _dest.Value.ShouldEqual(20);
+            _dest.Value.ShouldBe(20);
         }
 
         [Fact]
@@ -1091,7 +1086,7 @@ namespace AutoMapper.UnitTests
                 .ConvertUsing(s => new Destination { Value = s.Value + 10 }));
 
             _dest = config.CreateMapper().Map<Source, Destination>(_source);
-            _dest.Value.ShouldEqual(20);
+            _dest.Value.ShouldBe(20);
         }
     }
 
@@ -1144,7 +1139,7 @@ namespace AutoMapper.UnitTests
         [Fact]
         public void Should_use_the_custom_constructor_function()
         {
-            _result.Value.ShouldEqual(15);
+            _result.Value.ShouldBe(15);
         }
     }
 
@@ -1221,7 +1216,7 @@ namespace AutoMapper.UnitTests
             cfg.ConstructServicesUsing(type => new CustomValueResolver(5));
 
             cfg.CreateMap<Source, Destination>()
-                .ForMember(d => d.Value, opt => opt.ResolveUsing<CustomValueResolver, int>(src => src.Value));
+                .ForMember(d => d.Value, opt => opt.MapFrom<CustomValueResolver, int>(src => src.Value));
         });
 
         protected override void Because_of()
@@ -1232,7 +1227,7 @@ namespace AutoMapper.UnitTests
         [Fact]
         public void Should_use_the_specified_constructor()
         {
-            _result.Value.ShouldEqual(10);
+            _result.Value.ShouldBe(10);
         }
     }
 
@@ -1262,7 +1257,7 @@ namespace AutoMapper.UnitTests
         protected override MapperConfiguration Configuration { get; } = new MapperConfiguration(cfg =>
         {
             cfg.CreateMap<Source, Destination>()
-                .ForMember(d => d.Value, opt => opt.ResolveUsing<CustomValueResolver, int>(src => src.Value));
+                .ForMember(d => d.Value, opt => opt.MapFrom<CustomValueResolver, int>(src => src.Value));
         });
 
         protected override void Because_of()
@@ -1273,7 +1268,7 @@ namespace AutoMapper.UnitTests
         [Fact]
         public void Should_not_overwrite_destination_value()
         {
-            _result.Value.ShouldEqual(55);
+            _result.Value.ShouldBe(55);
         }
     }
 
@@ -1312,11 +1307,10 @@ namespace AutoMapper.UnitTests
         protected override MapperConfiguration Configuration { get; } = new MapperConfiguration(cfg => {
             cfg.CreateMap<SourceDto, DestinationDto>()
                 .ForMember(dest => dest.Ident, opt => opt.MapFrom(x => x.Id))
-                .ForMember(dest => dest.Number, opt => opt.ResolveUsing<CustomResolver, string>(src => src.NumberValue))
+                .ForMember(dest => dest.Number, opt => opt.MapFrom<CustomResolver, string>(src => src.NumberValue))
                 ;
             cfg.CreateMap<SourceChildDto, DestinationChildDto>()
                 .IncludeBase<SourceDto, DestinationDto>()
-                //.ForMember(dest => dest.Number, opt => opt.ResolveUsing<CustomResolver, string>(src => src.NumberValue))
                 ;
         });
 
@@ -1332,7 +1326,7 @@ namespace AutoMapper.UnitTests
 
             // destination = { Ident: 1, Number: 0 /* should be 13 */, ChildField: "alpha" }
             var destination = Mapper.Map<DestinationChildDto>(sourceChild);
-            destination.Number.ShouldEqual(13);
+            destination.Number.ShouldBe(13);
         }
     }
 
@@ -1369,7 +1363,7 @@ namespace AutoMapper.UnitTests
 
             cfg.CreateMap<Source, Destination>()
                 .ForMember("DestinationValue",
-                    opt => opt.ResolveUsing<CustomValueResolver, int>("SourceValue"));
+                    opt => opt.MapFrom<CustomValueResolver, int>("SourceValue"));
         });
 
         protected override void Because_of()
@@ -1380,7 +1374,7 @@ namespace AutoMapper.UnitTests
         [Fact]
         public void Should_translate_the_property()
         {
-            _result.DestinationValue.ShouldEqual(10);
+            _result.DestinationValue.ShouldBe(10);
         }
     }
 
@@ -1448,7 +1442,7 @@ namespace AutoMapper.UnitTests
         [Fact]
         public void Should_perform_the_translation()
         {
-            _dest.Name.ShouldEqual("jon");
+            _dest.Name.ShouldBe("jon");
         }
     }
 
@@ -1496,25 +1490,25 @@ namespace AutoMapper.UnitTests
         [Fact]
         public void Should_copy_to_properties_that_have_setters()
         {
-            _dest.Value.ShouldEqual("value");
+            _dest.Value.ShouldBe("value");
         }
 
         [Fact]
         public void Should_not_attempt_to_translate_to_properties_that_do_not_have_a_setter()
         {
-            _dest.Today.ShouldEqual(DateTime.Today);
+            _dest.Today.ShouldBe(DateTime.Today);
         }
 
         [Fact]
         public void Should_translate_to_properties_that_have_a_private_setters()
         {
-            _dest.Name.ShouldEqual("jon");
+            _dest.Name.ShouldBe("jon");
         }
 
         [Fact]
         public void Should_translate_to_properties_that_have_a_protected_setters()
         {
-            _dest.Foo.ShouldEqual("bar");
+            _dest.Foo.ShouldBe("bar");
         }
     }
 
@@ -1588,13 +1582,13 @@ namespace AutoMapper.UnitTests
         [Fact]
         public void Should_translate_to_properties_that_doesnt_have_a_getter()
         {
-            _dest.GetValue().ShouldEqual("jon");
+            _dest.GetValue().ShouldBe("jon");
         }
 
         [Fact]
         public void Should_translate_to_enumerable_properties_that_doesnt_have_a_getter()
         {
-            new[] { 1, 2 }.ShouldEqual(_destWithList.GetSomeList());
+            new[] { 1, 2 }.ShouldBe(_destWithList.GetSomeList());
         }
     }
 
@@ -1634,13 +1628,13 @@ namespace AutoMapper.UnitTests
         [Fact]
         public void Should_use_supplied_constructor_to_map()
         {
-            _destination.OtherValue.ShouldEqual(9);
+            _destination.OtherValue.ShouldBe(9);
         }
 
         [Fact]
         public void Should_map_other_members()
         {
-            _destination.Value.ShouldEqual(5);
+            _destination.Value.ShouldBe(5);
         }
     }
 
@@ -1661,7 +1655,7 @@ namespace AutoMapper.UnitTests
         protected override MapperConfiguration Configuration { get; } = new MapperConfiguration(cfg =>
         {
             cfg.CreateMap<Source, Dest>()
-                .ForMember(dest => dest.Value, opt => opt.UseValue(5));
+                .ForMember(dest => dest.Value, opt => opt.MapFrom(src => 5));
         });
 
         protected override void Because_of()
@@ -1672,7 +1666,7 @@ namespace AutoMapper.UnitTests
         [Fact]
         public void Should_map_from_that_constant_value()
         {
-            _dest.Value.ShouldEqual(5);
+            _dest.Value.ShouldBe(5);
         }
     }
 
@@ -1696,7 +1690,7 @@ namespace AutoMapper.UnitTests
             try
             {
                 var config = new MapperConfiguration(cfg => cfg.CreateMap<Source, Dest>()
-                    .ForMember(dest => dest, opt => opt.UseValue(5)));
+                    .ForMember(dest => dest, opt => opt.MapFrom(src => 5)));
             }
             catch (Exception e)
             {
@@ -1746,7 +1740,7 @@ namespace AutoMapper.UnitTests
         [Fact]
         public void Should_use_member_configuration()
         {
-            _dest.Value.ShouldEqual(1);
+            _dest.Value.ShouldBe(1);
         }
 
         private static int ParseValue(string value)

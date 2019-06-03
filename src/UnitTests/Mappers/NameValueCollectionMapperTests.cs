@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Specialized;
 using AutoMapper.Mappers;
-using Should;
+using Shouldly;
 using Xunit;
 
 namespace AutoMapper.UnitTests.Mappers
@@ -46,14 +46,16 @@ namespace AutoMapper.UnitTests.Mappers
         public class Map
         {
             [Fact]
-            public void ReturnsNullIfSourceValueIsNull()
+            public void ReturnsTheDestinationWhenPassedOne()
             {
                 var config = new MapperConfiguration(_ => { });
                 IMapper mapper = new Mapper(config);
 
-                var result = mapper.Map((NameValueCollection)null, new NameValueCollection());
+                var destination = new NameValueCollection();
 
-                result.ShouldBeNull();
+                var result = mapper.Map((NameValueCollection)null, destination);
+
+                result.ShouldBeSameAs(destination);
             }
 
             [Fact]
@@ -76,9 +78,9 @@ namespace AutoMapper.UnitTests.Mappers
 
                 var result = mapper.Map(sourceValue, new NameValueCollection());
 
-                1.ShouldEqual(result.Count);
-                "foo".ShouldEqual(result.AllKeys[0]);
-                "bar".ShouldEqual(result["foo"]);
+                1.ShouldBe(result.Count);
+                "foo".ShouldBe(result.AllKeys[0]);
+                "bar".ShouldBe(result["foo"]);
             }
         }
         

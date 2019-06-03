@@ -1,49 +1,28 @@
-using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Reflection;
+using AutoMapper.Configuration;
+using AutoMapper.Internal;
+using AutoMapper.Mappers.Internal;
 
 namespace AutoMapper.Mappers
 {
-    using System;
-    using System.Reflection;
-    using Configuration;
     using static Expression;
-    using static ExpressionExtensions;
+    using static ExpressionFactory;
+    using static CollectionMapperExpressionFactory;
 
-    public class ArrayMapper : IObjectMapper
+    public class ArrayMapper : EnumerableMapperBase
     {
-        private static readonly MethodInfo MapMethodInfo = typeof(ArrayMapper).GetAllMethods().First(_ => _.IsStatic);
-        
-        public static TDestination[] Map<TSource, TDestination>(IEnumerable<TSource> source, ResolutionContext context, Func<TSource, ResolutionContext, TDestination> newItemFunc)
+        public override bool IsMatch(TypePair context) => context.DestinationType.IsArray && context.SourceType.IsEnumerableType();
+
+        public override Expression MapExpression(IConfigurationProvider configurationProvider, ProfileMap profileMap,
+            IMemberMap memberMap, Expression sourceExpression, Expression destExpression, Expression contextExpression)
         {
-            var count = source.Count();
-            var array = new TDestination[count];
+            var sourceElementType = ElementTypeHelper.GetElementType(sourceExpression.Type);
+            var destElementType = ElementTypeHelper.GetElementType(destExpression.Type);
 
-            int i = 0;
-            foreach (var item in source)
-                array[i++] = newItemFunc(item, context);
-            return array;
-        }
-
-        public bool IsMatch(TypePair context)
-        {
-            return (context.DestinationType.IsArray) && (context.SourceType.IsEnumerableType());
-        }
-
-        public Expression MapExpression(TypeMapRegistry typeMapRegistry, IConfigurationProvider configurationProvider, PropertyMap propertyMap, Expression sourceExpression, Expression destExpression, Expression contextExpression)
-        {
-            var sourceElementType = TypeHelper.GetElementType(sourceExpression.Type);
-            var destElementType = TypeHelper.GetElementType(destExpression.Type);
-
-            var allowNullCollections = propertyMap?.TypeMap.Profile.AllowNullCollections ??
-                                       configurationProvider.Configuration.AllowNullCollections;
-            var ifNullExpr = allowNullCollections
-                                 ? (Expression) Constant(null, destExpression.Type)
-                                 : NewArrayBounds(destElementType, Constant(0));
-
-            ParameterExpression itemParam;
-            var itemExpr = typeMapRegistry.MapItemExpr(configurationProvider, propertyMap, sourceExpression.Type, destExpression.Type, contextExpression, out itemParam);
+            var itemExpr = MapItemExpr(configurationProvider, profileMap, sourceExpression.Type, destExpression.Type, contextExpression, out ParameterExpression itemParam);
 
             //var count = source.Count();
             //var array = new TDestination[count];
@@ -73,11 +52,7 @@ namespace AutoMapper.Mappers
                 ));
             actions.Add(arrayParam);
 
-            var mapExpr = Block(parameters, actions);
-
-            // return (source == null) ? ifNullExpr : Map<TSourceElement, TDestElement>(source, context);
-            return Condition(Equal(sourceExpression, Constant(null)), ifNullExpr, mapExpr);
+            return Block(parameters, actions);
         }
-
     }
 }

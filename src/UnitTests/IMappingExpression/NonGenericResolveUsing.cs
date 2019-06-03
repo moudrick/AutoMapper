@@ -1,5 +1,5 @@
 using Xunit;
-using Should;
+using Shouldly;
 using System.Linq;
 
 namespace AutoMapper.UnitTests
@@ -18,7 +18,7 @@ namespace AutoMapper.UnitTests
 
         protected override MapperConfiguration Configuration { get; } = new MapperConfiguration(cfg =>
         {
-            cfg.CreateMap(typeof(Source), typeof(Destination)).ForMember("Value", o => o.ResolveUsing((src, dest, member, ctx) => 10));
+            cfg.CreateMap(typeof(Source), typeof(Destination)).ForMember("Value", o => o.MapFrom((src, dest, member, ctx) => 10));
         });
 
         protected override void Because_of()
@@ -29,7 +29,7 @@ namespace AutoMapper.UnitTests
         [Fact]
         public void Should_map_ok()
         {
-            _destination.Value.ShouldEqual(10);
+            _destination.Value.ShouldBe(10);
         }
     }
 }

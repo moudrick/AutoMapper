@@ -1,24 +1,22 @@
+using System.Collections.Generic;
+using System.Linq.Expressions;
+using AutoMapper.Configuration;
+using AutoMapper.Mappers.Internal;
+
 namespace AutoMapper.Mappers
 {
-    using System.Collections.Generic;
-    using System.Linq.Expressions;
-    using Configuration;
+    using static CollectionMapperExpressionFactory;
 
     public class EnumerableToDictionaryMapper : IObjectMapper
     {
-        public bool IsMatch(TypePair context)
-        {
-            return context.DestinationType.IsDictionaryType()
-                   && context.SourceType.IsEnumerableType()
-                   && !context.SourceType.IsDictionaryType();
-        }
+        public bool IsMatch(TypePair context) => context.DestinationType.IsDictionaryType()
+                                                 && context.SourceType.IsEnumerableType()
+                                                 && !context.SourceType.IsDictionaryType();
 
-        public Expression MapExpression(TypeMapRegistry typeMapRegistry, IConfigurationProvider configurationProvider,
-                PropertyMap propertyMap, Expression sourceExpression, Expression destExpression,
-                Expression contextExpression)
+        public Expression MapExpression(IConfigurationProvider configurationProvider, ProfileMap profileMap,
+            IMemberMap memberMap, Expression sourceExpression, Expression destExpression, Expression contextExpression)
             =>
-            typeMapRegistry.MapCollectionExpression(configurationProvider, propertyMap, sourceExpression, destExpression,
-                contextExpression, CollectionMapperExtensions.IfNotNull, typeof(Dictionary<,>),
-                CollectionMapperExtensions.MapItemExpr);
+            MapCollectionExpression(configurationProvider, profileMap, memberMap, sourceExpression, destExpression,
+                contextExpression, typeof(Dictionary<,>), MapItemExpr);
     }
 }

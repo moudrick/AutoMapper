@@ -1,11 +1,35 @@
 using System;
 using System.Linq;
 using Xunit;
-using Should;
+using Shouldly;
 using System.Collections.Generic;
+using AutoMapper.QueryableExtensions;
 
 namespace AutoMapper.UnitTests.DynamicMapping
 {
+    public class When_mapping_from_untyped_enum_to_typed_enum : NonValidatingSpecBase
+    {
+        private Destination _result;
+
+        public class Destination
+        {
+            public ConsoleColor Value { get; set; }
+        }
+
+        protected override void Because_of()
+        {
+            _result = Mapper.Map<Destination>(new { Value = (Enum) ConsoleColor.DarkGreen });
+        }
+
+        [Fact]
+        public void Should_map_ok()
+        {
+            _result.Value.ShouldBe(ConsoleColor.DarkGreen);
+        }
+
+        protected override MapperConfiguration Configuration { get; } = new MapperConfiguration(cfg => {});
+    }
+
     public class When_mapping_nested_types : NonValidatingSpecBase
     {
         List<ParentTestDto> _destination;
@@ -29,7 +53,7 @@ namespace AutoMapper.UnitTests.DynamicMapping
             public TestDto Patient { get; set; }
         }
 
-        protected override MapperConfiguration Configuration { get; } = new MapperConfiguration(cfg => cfg.CreateMissingTypeMaps = true);
+        protected override MapperConfiguration Configuration { get; } = new MapperConfiguration(cfg => { });
 
         protected override void Because_of()
         {
@@ -51,7 +75,7 @@ namespace AutoMapper.UnitTests.DynamicMapping
         public void Should_map_ok()
         {
             var result = _destination.First();
-            result.Patient.Id.ShouldEqual(10);
+            result.Patient.Id.ShouldBe(10);
         }
     }
 
@@ -70,15 +94,15 @@ namespace AutoMapper.UnitTests.DynamicMapping
             public int Value { get; set; }
         }
 
-        protected override MapperConfiguration Configuration { get; } = new MapperConfiguration(cfg => cfg.CreateMissingTypeMaps = true);
+        protected override MapperConfiguration Configuration { get; } = new MapperConfiguration(cfg => { });
 
         [Fact]
         public void Should_dynamically_map_the_two_types()
         {
             _resultWithGenerics = Mapper.Map<Source, Destination>(new Source {Value = 5});
             _resultWithoutGenerics = (Destination) Mapper.Map(new Source {Value = 5}, typeof(Source), typeof(Destination));
-            _resultWithGenerics.Value.ShouldEqual(5);
-            _resultWithoutGenerics.Value.ShouldEqual(5);
+            _resultWithGenerics.Value.ShouldBe(5);
+            _resultWithoutGenerics.Value.ShouldBe(5);
         }
     }
 
@@ -111,9 +135,7 @@ namespace AutoMapper.UnitTests.DynamicMapping
         protected override MapperConfiguration Configuration { get; } = new MapperConfiguration(cfg =>
         {
             cfg.CreateMap<Original, Target>()
-                .ForMember(t => t.Child, o => o.ResolveUsing<TargetResolver>());
-
-            cfg.CreateMissingTypeMaps = true;
+                .ForMember(t => t.Child, o => o.MapFrom<TargetResolver>());
         });
 
         [Fact]
@@ -123,9 +145,9 @@ namespace AutoMapper.UnitTests.DynamicMapping
             var original = new Original { Text = "Hello world from original!" };
             var mapped = Mapper.Map<Target>(original);
 
-            mapped.Text.ShouldEqual(original.Text);
+            mapped.Text.ShouldBe(original.Text);
             mapped.Child.ShouldNotBeNull();
-            mapped.Child.Content.ShouldEqual("Hello world from inner!");
+            mapped.Child.Content.ShouldBe("Hello world from inner!");
         }
     }
 
@@ -155,7 +177,7 @@ namespace AutoMapper.UnitTests.DynamicMapping
             public string Value2 { get; set; }
         }
 
-        protected override MapperConfiguration Configuration { get; } = new MapperConfiguration(cfg => cfg.CreateMissingTypeMaps = true);
+        protected override MapperConfiguration Configuration { get; } = new MapperConfiguration(cfg => {});
 
         public When_mapping_two_non_configured_types_with_nesting()
         {
@@ -173,13 +195,13 @@ namespace AutoMapper.UnitTests.DynamicMapping
         [Fact]
         public void Should_dynamically_map_the_two_types()
         {
-            _resultWithGenerics.Value.ShouldEqual(5);
+            _resultWithGenerics.Value.ShouldBe(5);
         }
 
         [Fact]
         public void Should_dynamically_map_the_children()
         {
-            _resultWithGenerics.Child.Value2.ShouldEqual("foo");
+            _resultWithGenerics.Child.Value2.ShouldBe("foo");
         }
     }
 
@@ -195,20 +217,20 @@ namespace AutoMapper.UnitTests.DynamicMapping
             public int Valuefff { get; set; }
         }
 
-        protected override MapperConfiguration Configuration { get; } = new MapperConfiguration(cfg => cfg.CreateMissingTypeMaps = true);
+        protected override MapperConfiguration Configuration { get; } = new MapperConfiguration(cfg => { });
 
         [Fact]
         public void Should_ignore_any_members_that_do_not_match()
         {
-            var destination = Mapper.Map<Source, Destination>(new Source {Value = 5});
+            var destination = Mapper.Map<Source, Destination>(new Source {Value = 5}, opt => opt.ConfigureMap(MemberList.None));
 
-            destination.Valuefff.ShouldEqual(0);
+            destination.Valuefff.ShouldBe(0);
         }
 
         [Fact]
         public void Should_not_throw_any_configuration_errors()
         {
-            typeof(AutoMapperConfigurationException).ShouldNotBeThrownBy(() => Mapper.Map<Source, Destination>(new Source { Value = 5 }));
+            typeof(AutoMapperConfigurationException).ShouldNotBeThrownBy(() => Mapper.Map<Source, Destination>(new Source { Value = 5 }, opt => opt.ConfigureMap(MemberList.None)));
         }
     }
 
@@ -228,24 +250,59 @@ namespace AutoMapper.UnitTests.DynamicMapping
             public int Value2 { get; set; }
         }
 
-        protected override MapperConfiguration Configuration { get; } = new MapperConfiguration(cfg => cfg.CreateMissingTypeMaps = true);
+        protected override MapperConfiguration Configuration { get; } = new MapperConfiguration(cfg => {});
 
         public When_mapping_to_an_existing_destination_object()
         {
             _destination = new Destination { Valuefff = 7};
-            Mapper.Map(new Source { Value = 5, Value2 = 3}, _destination);
+            Mapper.Map(new Source { Value = 5, Value2 = 3}, _destination, opt => opt.ConfigureMap(MemberList.None));
         }
 
         [Fact]
         public void Should_preserve_existing_values()
         {
-            _destination.Valuefff.ShouldEqual(7);
+            _destination.Valuefff.ShouldBe(7);
         }
 
         [Fact]
         public void Should_map_new_values()
         {
-            _destination.Value2.ShouldEqual(3);
+            _destination.Value2.ShouldBe(3);
+        }
+    }
+
+    public class When_inline_mapping_with_inline_captured_closure : NonValidatingSpecBase
+    {
+        public class Source
+        {
+            public int Value { get; set; }
+        }
+
+        public class Dest
+        {
+            public int Value { get; set; }
+        }
+
+        protected override MapperConfiguration Configuration { get; } = new MapperConfiguration(_ => {});
+
+        [Fact]
+        public void Should_use_inline_value()
+        {
+            var value = 0;
+
+            var source = new Source { Value = 10 };
+
+            void ConfigOpts(IMappingOperationOptions<Source, Dest> opt) => opt.ConfigureMap().ForMember(d => d.Value, m => m.MapFrom(src => src.Value + value));
+
+            var dest = Mapper.Map<Source, Dest>(source, ConfigOpts);
+
+            dest.Value.ShouldBe(10);
+
+            value = 10;
+
+            dest = Mapper.Map<Source, Dest>(source, ConfigOpts);
+
+            dest.Value.ShouldBe(20);
         }
     }
 
@@ -266,9 +323,248 @@ namespace AutoMapper.UnitTests.DynamicMapping
         [Fact]
         public void Should_allow_dynamic_mapping()
         {
-            _result.Value.ShouldEqual(5);
+            _result.Value.ShouldBe(5);
         }
 
-        protected override MapperConfiguration Configuration { get; } = new MapperConfiguration(cfg => cfg.CreateMissingTypeMaps = true);
+        protected override MapperConfiguration Configuration { get; } = new MapperConfiguration(cfg => { });
+    }
+
+    public class When_dynamically_mapping_a_badly_configured_map : NonValidatingSpecBase
+    {
+        public class Source
+        {
+        }
+
+        public class Dest
+        {
+            public int Value { get; set; }
+        }
+
+        protected override MapperConfiguration Configuration { get; } = new MapperConfiguration(cfg => { });
+
+        [Fact]
+        public void Should_throw()
+        {
+            new Action(() => Mapper.Map<Source, Dest>(new Source()))
+                .ShouldThrowException<AutoMapperConfigurationException>(
+                    ex=>ex.Message.ShouldContain("AutoMapper created this type map for you, but your types cannot be mapped using the current configuration.", Case.Sensitive));
+        }
+    }
+
+    public class When_dynamically_mapping_a_badly_configured_map_and_turning_off_validation : NonValidatingSpecBase
+    {
+        public class Source
+        {
+        }
+
+        public class Dest
+        {
+            public int Value { get; set; }
+        }
+
+        protected override MapperConfiguration Configuration { get; } = new MapperConfiguration(cfg =>
+            {
+                cfg.ValidateInlineMaps = false;
+            });
+
+        [Fact]
+        public void Should_not_throw()
+        {
+            Action action = () => Mapper.Map<Source, Dest>(new Source());
+
+            action.ShouldNotThrow();
+        }
+    }
+
+    public class When_automatically_dynamically_mapping : NonValidatingSpecBase
+    {
+        public class Source
+        {
+            public int Value { get; set; }
+        }
+
+        public class Dest
+        {
+            public int Value { get; set; }
+        }
+
+        protected override MapperConfiguration Configuration { get; } = new MapperConfiguration(cfg => {});
+
+        [Fact]
+        public void Should_map()
+        {
+            var source = new Source {Value = 5};
+            var dest = Mapper.Map<Dest>(source);
+            dest.Value.ShouldBe(5);
+        }
+    }
+
+    public class When_automatically_dynamically_projecting : NonValidatingSpecBase
+    {
+        public class Source
+        {
+            public int Value { get; set; }
+        }
+
+        public class Dest
+        {
+            public int Value { get; set; }
+        }
+
+        protected override MapperConfiguration Configuration { get; } = new MapperConfiguration(cfg => {});
+
+        [Fact]
+        public void Should_map()
+        {
+            var source = new Source {Value = 5};
+            var items = new[] {source}.AsQueryable();
+            var dest = items.ProjectTo<Dest>(ConfigProvider).ToArray();
+
+            dest.Length.ShouldBe(1);
+            dest[0].Value.ShouldBe(5);
+        }
+    }
+
+    public class When_mixing_auto_and_manual_map : NonValidatingSpecBase
+    {
+        public class Source
+        {
+            public int Value { get; set; }
+            public Inner Value2 { get; set; }
+
+            public class Inner
+            {
+                public string Value { get; set; }
+            }
+        }
+
+        public class Dest
+        {
+            public int Value { get; set; }
+            public Inner Value2 { get; set; }
+
+            public class Inner
+            {
+                public string Value { get; set; }
+            }
+
+        }
+
+        protected override MapperConfiguration Configuration { get; } = new MapperConfiguration(cfg => cfg.CreateMap<Source, Dest>().ForMember(d => d.Value, opt => opt.MapFrom(src => src.Value + 5)));
+
+        [Fact]
+        public void Should_map()
+        {
+            var source = new Source
+            {
+                Value = 5,
+                Value2 = new Source.Inner
+                {
+                    Value = "asdf"
+                }
+            };
+
+            var dest = Mapper.Map<Dest>(source);
+
+            dest.Value.ShouldBe(source.Value + 5);
+            dest.Value2.Value.ShouldBe(source.Value2.Value);
+        }
+    }
+
+    public class When_mixing_auto_and_manual_map_with_mismatched_properties : NonValidatingSpecBase
+    {
+        public class Source
+        {
+            public int Value { get; set; }
+            public Inner Value2 { get; set; }
+
+            public class Inner
+            {
+                public string Value { get; set; }
+            }
+        }
+
+        public class Dest
+        {
+            public int Value { get; set; }
+            public Inner Value2 { get; set; }
+
+            public class Inner
+            {
+                public string Valuefff { get; set; }
+            }
+
+        }
+
+        protected override MapperConfiguration Configuration { get; } = new MapperConfiguration(cfg => cfg.CreateMap<Source, Dest>().ForMember(d => d.Value, opt => opt.MapFrom(src => src.Value + 5)));
+
+        [Fact]
+        public void Should_pass_validation()
+        {
+            Action assert = () => Configuration.AssertConfigurationIsValid();
+
+            assert.ShouldNotThrow();
+        }
+
+        [Fact]
+        public void Should_not_pass_runtime_validation()
+        {
+            Action assert = () => Mapper.Map<Dest>(new Source { Value = 5, Value2 = new Source.Inner { Value = "asdf"}});
+
+            var exception = assert.ShouldThrow<AutoMapperMappingException>();
+            var inner = exception.InnerException as AutoMapperConfigurationException;
+
+            inner.ShouldNotBeNull();
+
+            inner.Errors.Select(e => e.TypeMap.Types).ShouldContain(tp => tp == new TypePair(typeof(Source.Inner), typeof(Dest.Inner)));
+        }
+    }
+
+    public class When_inner_maps_are_mismatched : AutoMapperSpecBase
+    {
+        public class Source
+        {
+            public int Value { get; set; }
+            public Child Value2 { get; set; }
+
+            public class Child
+            {
+                public InnerChild Value { get; set; }
+            }
+            public class InnerChild
+            {
+                public string Value { get; set; }
+            }
+        }
+
+        public class Dest
+        {
+            public int Value { get; set; }
+            public Child Value2 { get; set; }
+
+            public class Child
+            {
+                public InnerChild Value { get; set; }
+            }
+            public class InnerChild
+            {
+                public string Valuefff { get; set; }
+            }
+        }
+
+        protected override MapperConfiguration Configuration { get; } = new MapperConfiguration(cfg => cfg.CreateMap<Source, Dest>());
+
+        [Fact]
+        public void Should_not_pass_runtime_validation()
+        {
+            Action assert = () => Mapper.Map<Dest>(new Source { Value = 5, Value2 = new Source.Child { Value = new Source.InnerChild { Value = "asdf" } } });
+
+            var exception = assert.ShouldThrow<AutoMapperMappingException>();
+            var inner = exception.GetBaseException() as AutoMapperConfigurationException;
+
+            inner.ShouldNotBeNull();
+
+            inner.Errors.Select(e => e.TypeMap.Types).ShouldContain(tp => tp == new TypePair(typeof(Source.InnerChild), typeof(Dest.InnerChild)));
+        }
     }
 }

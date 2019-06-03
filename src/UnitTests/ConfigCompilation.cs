@@ -1,6 +1,7 @@
 ﻿namespace AutoMapper.UnitTests
 {
-    using Should;
+    using System.Collections.Generic;
+    using Shouldly;
     using Xunit;
 
     public class ConfigCompilation : NonValidatingSpecBase
@@ -14,6 +15,7 @@
         {
             cfg.CreateMap<Source, Dest>();
             cfg.CreateMap<Source2, Dest2>();
+            cfg.CreateMap(typeof(IEnumerable<>), typeof(IEnumerable<>)).ConvertUsing(s => s);
         });
 
         [Fact]

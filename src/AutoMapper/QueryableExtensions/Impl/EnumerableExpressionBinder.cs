@@ -1,45 +1,45 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
+using AutoMapper.Configuration;
+using AutoMapper.Mappers;
+using AutoMapper.Mappers.Internal;
 
 namespace AutoMapper.QueryableExtensions.Impl
 {
-    using Configuration;
-    using Mappers;
-
     public class EnumerableExpressionBinder : IExpressionBinder
     {
-        public bool IsMatch(PropertyMap propertyMap, TypeMap propertyTypeMap, ExpressionResolutionResult result)
-        {
-            return propertyMap.DestinationPropertyType.IsEnumerableType() && propertyMap.SourceType.IsEnumerableType() &&
-                    !(TypeHelper.GetElementType(propertyMap.DestinationPropertyType).IsPrimitive() && TypeHelper.GetElementType(propertyMap.SourceType).IsPrimitive());
-        }
+        public bool IsMatch(PropertyMap propertyMap, TypeMap propertyTypeMap, ExpressionResolutionResult result) =>
+            propertyMap.DestinationType.IsEnumerableType() && propertyMap.SourceType.IsEnumerableType();
 
-        public MemberAssignment Build(IConfigurationProvider configuration, PropertyMap propertyMap, TypeMap propertyTypeMap, ExpressionRequest request, ExpressionResolutionResult result, IDictionary<ExpressionRequest, int> typePairCount)
-        {
-            return BindEnumerableExpression(configuration, propertyMap, request, result, typePairCount);
-        }
+        public MemberAssignment Build(IConfigurationProvider configuration, PropertyMap propertyMap, TypeMap propertyTypeMap, ExpressionRequest request, ExpressionResolutionResult result, IDictionary<ExpressionRequest, int> typePairCount, LetPropertyMaps letPropertyMaps) 
+            => BindEnumerableExpression(configuration, propertyMap, request, result, typePairCount, letPropertyMaps);
 
-        private static MemberAssignment BindEnumerableExpression(IConfigurationProvider configuration, PropertyMap propertyMap, ExpressionRequest request, ExpressionResolutionResult result, IDictionary<ExpressionRequest, int> typePairCount)
+        private static MemberAssignment BindEnumerableExpression(IConfigurationProvider configuration, PropertyMap propertyMap, ExpressionRequest request, ExpressionResolutionResult result, IDictionary<ExpressionRequest, int> typePairCount, LetPropertyMaps letPropertyMaps)
         {
-            var destinationListType = TypeHelper.GetElementType(propertyMap.DestinationPropertyType);
-            var sourceListType = TypeHelper.GetElementType(propertyMap.SourceType);
+            var destinationListType = ElementTypeHelper.GetElementType(propertyMap.DestinationType);
+            var sourceListType = ElementTypeHelper.GetElementType(propertyMap.SourceType);
             var expression = result.ResolutionExpression;
 
             if (sourceListType != destinationListType)
             {
                 var listTypePair = new ExpressionRequest(sourceListType, destinationListType, request.MembersToExpand, request);
-                var transformedExpression = configuration.ExpressionBuilder.CreateMapExpression(listTypePair, typePairCount);
-                if(transformedExpression == null)
+                var transformedExpressions = configuration.ExpressionBuilder.CreateMapExpression(listTypePair, typePairCount, letPropertyMaps.New());
+                if(transformedExpressions == null)
                 {
                     return null;
                 }
-                expression = Expression.Call(typeof (Enumerable), "Select", new[] {sourceListType, destinationListType}, result.ResolutionExpression, transformedExpression);
+                expression = transformedExpressions.Aggregate(expression, (source, lambda) => Select(source, lambda));
             }
 
-            expression = Expression.Call(typeof(Enumerable), propertyMap.DestinationPropertyType.IsArray ? "ToArray" : "ToList", new[] { destinationListType }, expression);
+            expression = Expression.Call(typeof(Enumerable), propertyMap.DestinationType.IsArray ? "ToArray" : "ToList", new[] { destinationListType }, expression);
 
-            return Expression.Bind(propertyMap.DestinationProperty, expression);
+            return Expression.Bind(propertyMap.DestinationMember, expression);
+        }
+
+        private static Expression Select(Expression source, LambdaExpression lambda)
+        {
+            return Expression.Call(typeof(Enumerable), "Select", new[] { lambda.Parameters[0].Type, lambda.ReturnType }, source, lambda);
         }
     }
 }

@@ -1,10 +1,12 @@
+using System;
+using System.Collections.Generic;
+using System.Linq.Expressions;
+using System.Reflection;
+using AutoMapper.Configuration.Conventions;
+using AutoMapper.Mappers;
+
 namespace AutoMapper
 {
-    using System;
-    using System.Reflection;
-    using Configuration.Conventions;
-    using Mappers;
-
     /// <summary>
     /// Configuration for profile-specific maps
     /// </summary>
@@ -143,6 +145,9 @@ namespace AutoMapper
 
         Func<PropertyInfo, bool> ShouldMapProperty { get; set; }
         Func<FieldInfo, bool> ShouldMapField { get; set; }
+        Func<MethodInfo, bool> ShouldMapMethod { get; set; }
+        Func<ConstructorInfo, bool> ShouldUseConstructor { get; set; }
+        
         string ProfileName { get; }
         IMemberConfiguration AddMemberConfiguration();
         IConditionalObjectMapper AddConditionalObjectMapper();
@@ -152,5 +157,15 @@ namespace AutoMapper
         /// </summary>
         /// <param name="type">Static type that contains extension methods</param>
         void IncludeSourceExtensionMethods(Type type);
+
+        /// <summary>
+        /// Value transformers. Modify the list directly or use <see cref="ValueTransformerConfigurationExtensions.Add{TValue}"/>
+        /// </summary>
+        IList<ValueTransformerConfiguration> ValueTransformers { get; }
+
+        /// <summary>
+        /// Validate maps created dynamically/inline on the first map. Defaults to true.
+        /// </summary>
+        bool? ValidateInlineMaps { get; set; }
     }
 }

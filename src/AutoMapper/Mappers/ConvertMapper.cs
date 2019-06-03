@@ -2,16 +2,17 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
+using AutoMapper.Internal;
 
 namespace AutoMapper.Mappers
 {
     using LazyExpression = Lazy<LambdaExpression>;
     using static Expression;
-    using static ExpressionExtensions;
+    using static ExpressionFactory;
 
     public class ConvertMapper : IObjectMapper
     {
-        private Dictionary<TypePair, LazyExpression> _converters = GetConverters();
+        private readonly Dictionary<TypePair, LazyExpression> _converters = GetConverters();
 
         private static Dictionary<TypePair, LazyExpression> GetConverters()
         {
@@ -22,7 +23,7 @@ namespace AutoMapper.Mappers
             };
             return
                 (from sourceType in primitiveTypes
-                 from destinationType in primitiveTypes.Concat(from type in primitiveTypes.Where(t => t.IsValueType()) select typeof(Nullable<>).MakeGenericType(type))
+                 from destinationType in primitiveTypes
                  select new
                  {
                      Key = new TypePair(sourceType, destinationType),
@@ -33,35 +34,15 @@ namespace AutoMapper.Mappers
 
         static LambdaExpression ConvertExpression(Type sourceType, Type destinationType)
         {
-            bool nullableDestination;
-            var underlyingDestinationType = UnderlyingType(destinationType, out nullableDestination);
-            var convertMethod = typeof(Convert).GetDeclaredMethod("To" + underlyingDestinationType.Name, new[] { sourceType });
+            var convertMethod = typeof(Convert).GetDeclaredMethod("To" + destinationType.Name, new[] { sourceType });
             var sourceParameter = Parameter(sourceType, "source");
-            Expression convertCall = Call(convertMethod, sourceParameter);
-            var lambdaBody = nullableDestination && !sourceType.IsValueType() ?
-                                            Condition(Equal(sourceParameter, Constant(null)), Constant(null, destinationType), ToType(convertCall, destinationType)) :
-                                            convertCall;
-            return Lambda(lambdaBody, sourceParameter);
-        }
-
-        private static Type UnderlyingType(Type type, out bool nullable)
-        {
-            var underlyingDestinationType = Nullable.GetUnderlyingType(type);
-            if(underlyingDestinationType == null)
-            {
-                nullable = false;
-                return type;
-            }
-            else
-            {
-                nullable = true;
-                return underlyingDestinationType;
-            }
+            return Lambda(Call(convertMethod, sourceParameter), sourceParameter);
         }
 
         public bool IsMatch(TypePair types) => _converters.ContainsKey(types);
 
-        public Expression MapExpression(TypeMapRegistry typeMapRegistry, IConfigurationProvider configurationProvider, PropertyMap propertyMap, Expression sourceExpression, Expression destExpression, Expression contextExpression)
+        public Expression MapExpression(IConfigurationProvider configurationProvider, ProfileMap profileMap,
+            IMemberMap memberMap, Expression sourceExpression, Expression destExpression, Expression contextExpression)
         {
             var typeMap = new TypePair(sourceExpression.Type, destExpression.Type);
             return _converters[typeMap].Value.ReplaceParameters(sourceExpression);

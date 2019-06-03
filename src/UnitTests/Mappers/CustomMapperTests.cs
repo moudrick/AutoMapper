@@ -1,5 +1,5 @@
 ﻿using System;
-using Should;
+using Shouldly;
 using System.Linq;
 using System.Linq.Expressions;
 using AutoMapper;
@@ -36,8 +36,9 @@ namespace AutoMapper.UnitTests.Mappers
                 return context.SourceType == typeof(SourceType) && context.DestinationType == typeof(DestinationType);
             }
 
-            public Expression MapExpression(TypeMapRegistry typeMapRegistry, IConfigurationProvider configurationProvider,
-                PropertyMap propertyMap, Expression sourceExpression, Expression destExpression, Expression contextExpression)
+            public Expression MapExpression(IConfigurationProvider configurationProvider, ProfileMap profileMap,
+                IMemberMap memberMap,
+                Expression sourceExpression, Expression destExpression, Expression contextExpression)
             {
                 Expression<Func<DestinationType>> expr = () => new DestinationType();
 
@@ -93,11 +94,13 @@ namespace AutoMapper.UnitTests.Mappers
         {
             public static DestinationType Instance = new DestinationType();
 
-            public override DestinationType Map(SourceType source, DestinationType destination, ResolutionContext context)
+            public override DestinationType Map(SourceType source, DestinationType destination, Type sourceType, Type destinationType, ResolutionContext context)
             {
                 source.ShouldNotBeNull();
                 destination.ShouldNotBeNull();
                 context.ShouldNotBeNull();
+                sourceType.ShouldBe(typeof(SourceType));
+                destinationType.ShouldBe(typeof(DestinationType));
                 return Instance;
             }
 
@@ -146,12 +149,14 @@ namespace AutoMapper.UnitTests.Mappers
         {
             public override bool IsMatch(TypePair types)
             {
-                var underlyingType = Nullable.GetUnderlyingType(types.SourceType);
-                return underlyingType.IsEnum && types.DestinationType == typeof(string);
+                var underlyingType = Nullable.GetUnderlyingType(types.SourceType) ?? types.SourceType;
+                return underlyingType.IsEnum() && types.DestinationType == typeof(string);
             }
 
-            public override string Map(object source, string destination, ResolutionContext context)
+            public override string Map(object source, string destination, Type sourceType, Type destinationType, ResolutionContext context)
             {
+                sourceType.ShouldBe(typeof(ConsoleColor?));
+                destinationType.ShouldBe(typeof(string));
                 return "Test";
             }
         }
@@ -170,7 +175,7 @@ namespace AutoMapper.UnitTests.Mappers
         [Fact]
         public void Should_map_with_underlying_type()
         {
-            _destination.Color.ShouldEqual("Test");
+            _destination.Color.ShouldBe("Test");
         }
     }
 }

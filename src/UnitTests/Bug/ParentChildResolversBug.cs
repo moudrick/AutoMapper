@@ -2,7 +2,7 @@
 {
     namespace ParentChildResolversBug
     {
-        using Should;
+        using Shouldly;
         using Xunit;
 
         public enum DestEnum
@@ -82,11 +82,11 @@
             protected override MapperConfiguration Configuration { get; } = new MapperConfiguration(cfg =>
             {
                 cfg.CreateMap<Source, ParentDest>()
-                    .ForMember(dest => dest.field, opt => opt.ResolveUsing<ParentResolver>())
+                    .ForMember(dest => dest.field, opt => opt.MapFrom<ParentResolver>())
                     .Include<Source, Dest>();
 
                 cfg.CreateMap<Source, Dest>()
-                    .ForMember(dest => dest.field, opt => opt.ResolveUsing<Resolver>());
+                    .ForMember(dest => dest.field, opt => opt.MapFrom<Resolver>());
             });
 
             protected override void Because_of()
@@ -102,7 +102,7 @@
             [Fact]
             public void Should_use_correct_resolver()
             {
-                _dest.field.ShouldEqual(DestEnum.a);
+                _dest.field.ShouldBe(DestEnum.a);
             }
         }
     }

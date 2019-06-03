@@ -1,11 +1,11 @@
+using System;
+using System.Collections.Generic;
+using System.Reflection;
+using AutoMapper.Configuration.Conventions;
+using AutoMapper.Mappers;
+
 namespace AutoMapper.Configuration
 {
-    using System;
-    using System.Collections.Generic;
-    using System.Reflection;
-    using Conventions;
-    using Mappers;
-
     /// <summary>
     /// Contains profile-specific configuration
     /// </summary>
@@ -18,6 +18,7 @@ namespace AutoMapper.Configuration
         bool? AllowNullCollections { get; }
         bool? EnableNullPropagationForQueryMapping { get; }
         bool? CreateMissingTypeMaps { get; }
+        bool? ValidateInlineMaps { get; }
         IEnumerable<Action<TypeMap, IMappingExpression>> AllTypeMapActions { get; }
         IEnumerable<Action<PropertyMap, IMemberConfigurationExpression>> AllPropertyMapActions { get; }
 
@@ -28,7 +29,7 @@ namespace AutoMapper.Configuration
 
         /// <summary>
         /// Specify which properties should be mapped.
-        /// By default only public properties are mapped.e
+        /// By default only public properties are mapped.
         /// </summary>
         Func<PropertyInfo, bool> ShouldMapProperty { get; }
 
@@ -38,11 +39,25 @@ namespace AutoMapper.Configuration
         /// </summary>
         Func<FieldInfo, bool> ShouldMapField { get; }
 
+        /// <summary>
+        /// Specify which methods, of those that are eligible (public, parameterless, and non-static or extension methods), should be mapped.
+        /// By default all eligible methods are mapped.
+        /// </summary>
+        Func<MethodInfo, bool> ShouldMapMethod { get; }
+
+
+        /// <summary>
+        /// Specify which constructors should be considered for the destination objects.
+        /// By default all constructors are considered.
+        /// </summary>
+        Func<ConstructorInfo, bool> ShouldUseConstructor { get; }
+
         string ProfileName { get; }
         IEnumerable<string> GlobalIgnores { get; }
         INamingConvention SourceMemberNamingConvention { get; }
         INamingConvention DestinationMemberNamingConvention { get; }
         IEnumerable<ITypeMapConfiguration> TypeMapConfigs { get; }
         IEnumerable<ITypeMapConfiguration> OpenTypeMapConfigs { get; }
+        IEnumerable<ValueTransformerConfiguration> ValueTransformers { get; }
     }
 }

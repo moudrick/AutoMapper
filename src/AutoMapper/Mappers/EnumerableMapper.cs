@@ -2,39 +2,30 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq.Expressions;
+using AutoMapper.Configuration;
+using AutoMapper.Mappers.Internal;
 
 namespace AutoMapper.Mappers
 {
-    using Configuration;
     using static Expression;
+    using static CollectionMapperExpressionFactory;
 
-    public class EnumerableMapper : IObjectMapper
+    public class EnumerableMapper : EnumerableMapperBase
     {
-        public bool IsMatch(TypePair context)
-        {
-            // destination type must be IEnumerable interface or a class implementing at least IList 
-            return ((context.DestinationType.IsInterface() && context.DestinationType.IsEnumerableType()) ||
-                    context.DestinationType.IsListType())
-                   && context.SourceType.IsEnumerableType();
-        }
+        public override bool IsMatch(TypePair context) => (context.DestinationType.IsInterface() && context.DestinationType.IsEnumerableType() ||
+                                                  context.DestinationType.IsListType())
+                                                 && context.SourceType.IsEnumerableType();
 
-        public Expression MapExpression(TypeMapRegistry typeMapRegistry, IConfigurationProvider configurationProvider,
-            PropertyMap propertyMap, Expression sourceExpression, Expression destExpression,
-            Expression contextExpression)
+        public override Expression MapExpression(IConfigurationProvider configurationProvider, ProfileMap profileMap,
+            IMemberMap memberMap, Expression sourceExpression, Expression destExpression, Expression contextExpression)
         {
             if(destExpression.Type.IsInterface())
             {
-                var listType = typeof(List<>).MakeGenericType(TypeHelper.GetElementType(destExpression.Type));
-                destExpression = Default(listType);
+                var listType = typeof(IList<>).MakeGenericType(ElementTypeHelper.GetElementType(destExpression.Type));
+                destExpression = Convert(destExpression, listType);
             }
-            return typeMapRegistry.MapCollectionExpression(configurationProvider, propertyMap, sourceExpression,
-                destExpression, contextExpression, IfEditableList, typeof(List<>),
-                CollectionMapperExtensions.MapItemExpr);
-        }
-
-        private static Expression IfEditableList(Expression dest)
-        {
-            return And(TypeIs(dest, typeof(IList)), Not(TypeIs(dest, typeof(Array))));
+            return MapCollectionExpression(configurationProvider, profileMap, memberMap, sourceExpression,
+                destExpression, contextExpression, typeof(List<>), MapItemExpr);
         }
     }
 }

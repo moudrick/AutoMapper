@@ -1,5 +1,5 @@
 ﻿using Xunit;
-using Should;
+using Shouldly;
 using System;
 
 namespace AutoMapper.UnitTests.Bug
@@ -50,7 +50,7 @@ namespace AutoMapper.UnitTests.Bug
             cfg.CreateMap<Source, Destination>();
             cfg.CreateMap<Source1, Destination1>();
             cfg.CreateMap<Source2, Destination2>();
-            cfg.ForAllMaps((tm, map) => map.ForMember("Number", o => o.ResolveUsing<MinusOneResolver>()));
+            cfg.ForAllMaps((tm, map) => map.ForMember("Number", o => o.MapFrom<MinusOneResolver>()));
         });
 
         protected override void Because_of()
@@ -63,9 +63,9 @@ namespace AutoMapper.UnitTests.Bug
         [Fact]
         public void Should_configure_all_maps()
         {
-            _destination.Number.ShouldEqual(-1);
-            _destination1.Number.ShouldEqual(-1);
-            _destination2.Number.ShouldEqual(-1);
+            _destination.Number.ShouldBe(-1);
+            _destination1.Number.ShouldBe(-1);
+            _destination2.Number.ShouldBe(-1);
         }
     }
 }

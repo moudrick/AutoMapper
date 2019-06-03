@@ -1,27 +1,30 @@
 using System;
-using System.Linq;
 using System.Linq.Expressions;
-using System.Reflection;
+using AutoMapper.Configuration;
+using AutoMapper.Execution;
 
 namespace AutoMapper.Mappers
 {
-    using Configuration;
+    using static Expression;
 
-    public class NullableSourceMapper : IObjectMapper
+    public class NullableSourceMapper : IObjectMapperInfo
     {
-        public static TDestination Map<TSource, TDestination>(TSource? source, TDestination destination, ResolutionContext context) where TSource : struct
-            => (source == null) ? context.Mapper.CreateObject<TDestination>() : context.Mapper.Map((TSource)source, destination);
+        public bool IsMatch(TypePair context) => context.SourceType.IsNullableType();
 
-        private static readonly MethodInfo MapMethodInfo = typeof(NullableSourceMapper).GetAllMethods().First(_ => _.IsStatic);
+        public Expression MapExpression(IConfigurationProvider configurationProvider, ProfileMap profileMap,
+            IMemberMap memberMap, Expression sourceExpression, Expression destExpression,
+            Expression contextExpression) =>
+                ExpressionBuilder.MapExpression(configurationProvider, profileMap,
+                    new TypePair(Nullable.GetUnderlyingType(sourceExpression.Type), destExpression.Type),
+                    Property(sourceExpression, sourceExpression.Type.GetDeclaredProperty("Value")),
+                    contextExpression,
+                    memberMap,
+                    destExpression
+                );
 
-        public bool IsMatch(TypePair context)
+        public TypePair GetAssociatedTypes(TypePair initialTypes)
         {
-            return context.SourceType.IsNullableType();
-        }
-
-        public Expression MapExpression(TypeMapRegistry typeMapRegistry, IConfigurationProvider configurationProvider, PropertyMap propertyMap, Expression sourceExpression, Expression destExpression, Expression contextExpression)
-        {
-            return Expression.Call(null, MapMethodInfo.MakeGenericMethod(Nullable.GetUnderlyingType(sourceExpression.Type), destExpression.Type), sourceExpression, destExpression, contextExpression);
+            return new TypePair(Nullable.GetUnderlyingType(initialTypes.SourceType), initialTypes.DestinationType);
         }
     }
 }

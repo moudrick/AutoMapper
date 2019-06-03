@@ -1,9 +1,9 @@
 ﻿using System;
-#if NET45
+using System.Resources;
+using System.Runtime.InteropServices;
 using System.Security;
-#endif
 
-[assembly:CLSCompliant(true)]
-#if NET45
+[assembly: CLSCompliant(true)]
 [assembly: AllowPartiallyTrustedCallers]
-#endif
+[assembly: ComVisible(false)]
+[assembly: NeutralResourcesLanguage("en")]

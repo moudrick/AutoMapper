@@ -1,8 +1,8 @@
-﻿namespace AutoMapper
-{
-    using System;
-    using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 
+namespace AutoMapper
+{
     /// <summary>
     /// Options for a single map operation
     /// </summary>
@@ -49,5 +49,18 @@
         /// </summary>
         /// <param name="afterFunction">Callback for the source/destination types</param>
         void AfterMap(Action<TSource, TDestination> afterFunction);
+
+        /// <summary>
+        /// Configure inline map
+        /// </summary>
+        /// <returns>Mapping configuration expression</returns>
+        IMappingExpression<TSource, TDestination> ConfigureMap();
+
+        /// <summary>
+        /// Configure inline map with member list to validate
+        /// </summary>
+        /// <param name="memberList">Member list to validate for the inline map</param>
+        /// <returns>Mapping configuration expression</returns>
+        IMappingExpression<TSource, TDestination> ConfigureMap(MemberList memberList);
     }
 }

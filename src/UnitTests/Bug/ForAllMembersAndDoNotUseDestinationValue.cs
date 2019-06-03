@@ -1,5 +1,5 @@
 ﻿using Xunit;
-using Should;
+using Shouldly;
 using System;
 
 namespace AutoMapper.UnitTests.Bug
@@ -19,7 +19,7 @@ namespace AutoMapper.UnitTests.Bug
 
         protected override MapperConfiguration Configuration { get; } = new MapperConfiguration(cfg =>
         {
-            cfg.CreateMap<Source, Destination>().ForAllMembers(opt => opt.ResolveUsing(s=>12));
+            cfg.CreateMap<Source, Destination>().ForAllMembers(opt => opt.MapFrom(s=>12));
         });
 
         protected override void Because_of()
@@ -34,7 +34,7 @@ namespace AutoMapper.UnitTests.Bug
         [Fact]
         public void Should_work_together()
         {
-            _destination.Number.ShouldEqual(12);
+            _destination.Number.ShouldBe(12);
         }
     }
 }

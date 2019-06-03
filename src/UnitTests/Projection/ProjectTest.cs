@@ -1,5 +1,5 @@
 ﻿﻿using Xunit;
-﻿using Should;
+﻿using Shouldly;
 
 namespace AutoMapper.UnitTests.Projection
 {
@@ -30,7 +30,7 @@ namespace AutoMapper.UnitTests.Projection
         [Fact]
         public void Should_work()
         {
-            new[] { new Foo() }.AsQueryable().ProjectTo<FooDto>(Configuration).Single().A.ShouldEqual(0);
+            new[] { new Foo() }.AsQueryable().ProjectTo<FooDto>(Configuration).Single().A.ShouldBe(0);
         } 
     }
 
@@ -44,6 +44,7 @@ namespace AutoMapper.UnitTests.Projection
             {
                 cfg.CreateMap<Address, AddressDto>();
                 cfg.CreateMap<Customer, CustomerDto>();
+                cfg.CreateMissingTypeMaps = false;
             });
         }
 

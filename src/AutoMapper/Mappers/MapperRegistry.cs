@@ -7,17 +7,19 @@ namespace AutoMapper.Mappers
         public static IList<IObjectMapper> Mappers() => new List<IObjectMapper>
         {
             new NullableSourceMapper(),
-            new ExpressionMapper(), 
+            new NullableDestinationMapper(),
             new FlagsEnumMapper(),
             new StringToEnumMapper(), 
+            new EnumToStringMapper(),
             new EnumToEnumMapper(), 
             new EnumToUnderlyingTypeMapper(),
+            new UnderlyingTypeToEnumMapper(),
             new MultidimensionalArrayMapper(),
+            new ArrayCopyMapper(),
             new ArrayMapper(),
             new EnumerableToDictionaryMapper(),
-#if NETSTANDARD1_3 || NET45
             new NameValueCollectionMapper(),
-#endif
+            new ReadOnlyDictionaryMapper(),
             new DictionaryMapper(),
             new ReadOnlyCollectionMapper(),
             new HashSetMapper(),

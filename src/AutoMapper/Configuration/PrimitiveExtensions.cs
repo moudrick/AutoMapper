@@ -1,129 +1,78 @@
+using System;
+using System.Collections.Generic;
+using System.Reflection;
+using AutoMapper.Configuration.Internal;
+
 namespace AutoMapper.Configuration
 {
-    using System;
-    using System.Collections;
-    using System.Collections.Generic;
-    using System.Linq;
-    using System.Reflection;
-
     internal static class PrimitiveExtensions
     {
-        public static TValue GetOrDefault<TKey, TValue>(this IDictionary<TKey, TValue> dictionary, TKey key)
+        public static void ForAll<T>(this IEnumerable<T> enumerable, Action<T> action)
         {
-            TValue value;
-            dictionary.TryGetValue(key, out value);
-            return value;
+            foreach (var feature in enumerable)
+            {
+                action(feature);
+            }
         }
+
+        public static bool IsSetType(this Type type)
+            => type.ImplementsGenericInterface(typeof(ISet<>));
+
+        public static TValue GetOrDefault<TKey, TValue>(this IDictionary<TKey, TValue> dictionary, TKey key)
+            => PrimitiveHelper.GetOrDefault(dictionary, key);
 
         public static MethodInfo GetInheritedMethod(this Type type, string name)
-        {
-            return GetMember(type, name) as MethodInfo;
-        }
+            => PrimitiveHelper.GetInheritedMethod(type, name);
 
         public static MemberInfo GetFieldOrProperty(this Type type, string name)
-        {
-            var memberInfo = GetMember(type, name);
-            if(memberInfo == null)
-            {
-                throw new ArgumentOutOfRangeException(nameof(name), "Cannot find a field or property named " + name);
-            }
-            return memberInfo;
-        }
-
-        private static MemberInfo GetMember(Type type, string name)
-        {
-            return 
-                new[] { type }.Concat(type.GetTypeInfo().ImplementedInterfaces)
-                .SelectMany(i => i.GetMember(name))
-                .FirstOrDefault();
-        }
+            => PrimitiveHelper.GetFieldOrProperty(type, name);
 
         public static bool IsNullableType(this Type type)
-        {
-            return type.IsGenericType(typeof(Nullable<>));
-        }
+            => PrimitiveHelper.IsNullableType(type);
 
         public static Type GetTypeOfNullable(this Type type)
-        {
-            return type.GetTypeInfo().GenericTypeArguments[0];
-        }
+            => PrimitiveHelper.GetTypeOfNullable(type);
 
         public static bool IsCollectionType(this Type type)
-        {
-            return type.ImplementsGenericInterface(typeof(ICollection<>));
-        }
-
+            => PrimitiveHelper.IsCollectionType(type);
 
         public static bool IsEnumerableType(this Type type)
-        {
-            return typeof(IEnumerable).IsAssignableFrom(type);
-        }
+            => PrimitiveHelper.IsEnumerableType(type);
 
         public static bool IsQueryableType(this Type type)
-        {
-            return typeof(IQueryable).IsAssignableFrom(type);
-        }
+            => PrimitiveHelper.IsQueryableType(type);
 
         public static bool IsListType(this Type type)
-        {
-            return typeof(IList).IsAssignableFrom(type);
-        }
+            => PrimitiveHelper.IsListType(type);
 
         public static bool IsListOrDictionaryType(this Type type)
-        {
-            return type.IsListType() || type.IsDictionaryType();
-        }
+            => PrimitiveHelper.IsListOrDictionaryType(type);
 
         public static bool IsDictionaryType(this Type type)
-        {
-            return type.ImplementsGenericInterface(typeof(IDictionary<,>));
-        }
+            => PrimitiveHelper.IsDictionaryType(type);
+
+        public static bool IsReadOnlyDictionaryType(this Type type)
+            => PrimitiveHelper.IsReadOnlyDictionaryType(type);
 
         public static bool ImplementsGenericInterface(this Type type, Type interfaceType)
-        {
-            if(type.IsGenericType(interfaceType))
-            {
-                return true;
-            }
-            foreach(var @interface in type.GetTypeInfo().ImplementedInterfaces)
-            {
-                if(@interface.IsGenericType(interfaceType))
-                {
-                    return true;
-                }
-            }
-            return false;
-        }
+            => PrimitiveHelper.ImplementsGenericInterface(type, interfaceType);
 
         public static bool IsGenericType(this Type type, Type genericType)
-        {
-            return type.IsGenericType() && type.GetGenericTypeDefinition() == genericType;
-        }
+            => PrimitiveHelper.IsGenericType(type, genericType);
 
         public static Type GetIEnumerableType(this Type type)
-        {
-            return type.GetGenericInterface(typeof(IEnumerable<>));
-        }
+            => PrimitiveHelper.GetIEnumerableType(type);
 
         public static Type GetDictionaryType(this Type type)
-        {
-            return type.GetGenericInterface(typeof(IDictionary<,>));
-        }
+            => PrimitiveHelper.GetDictionaryType(type);
+
+        public static Type GetReadOnlyDictionaryType(this Type type)
+            => PrimitiveHelper.GetReadOnlyDictionaryType(type);
 
         public static Type GetGenericInterface(this Type type, Type genericInterface)
-        {
-            if(type.IsGenericType(genericInterface))
-            {
-                return type;
-            }
-            return type.GetTypeInfo().ImplementedInterfaces.FirstOrDefault(t=>t.IsGenericType(genericInterface));
-        }
+            => PrimitiveHelper.GetGenericInterface(type, genericInterface);
 
         public static Type GetGenericElementType(this Type type)
-        {
-            if(type.HasElementType)
-                return type.GetElementType();
-            return type.GetTypeInfo().GenericTypeArguments[0];
-        }
+            => PrimitiveHelper.GetGenericElementType(type);
     }
 }

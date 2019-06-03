@@ -1,4 +1,4 @@
-﻿using Should;
+﻿using Shouldly;
 using Xunit;
 using System.Linq;
 using AutoMapper;
@@ -29,7 +29,7 @@ namespace AutoMapper.UnitTests.Bug
         {
             var config = new MapperConfiguration(cfg =>
             {
-                cfg.CreateMap<string, DummyTypes?>().ProjectUsing(s => (DummyTypes)System.Enum.Parse(typeof(DummyTypes),s));
+                cfg.CreateMap<string, DummyTypes?>().ConvertUsing(s => (DummyTypes)System.Enum.Parse(typeof(DummyTypes),s));
                 cfg.CreateMap<DummySource, DummyDestination>();
             });
 
@@ -39,7 +39,7 @@ namespace AutoMapper.UnitTests.Bug
 
             var destination = src.AsQueryable().ProjectTo<DummyDestination>(config).First();
 
-            destination.Dummy.ShouldEqual(DummyTypes.Foo);
+            destination.Dummy.ShouldBe(DummyTypes.Foo);
         }
     }
 }

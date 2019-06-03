@@ -2,22 +2,13 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using Should;
+using Shouldly;
 using Xunit;
 
 namespace AutoMapper.UnitTests.Bug
 {
     public class LazyCollectionMapping
     {
-        public LazyCollectionMapping()
-        {
-            SetUp();
-        }
-        public void SetUp()
-        {
-            
-        }
-
         public class OneTimeEnumerator<T> : IEnumerable<T>
         {
             private readonly IEnumerable<T> inner;
@@ -58,7 +49,7 @@ namespace AutoMapper.UnitTests.Bug
         {
             IEnumerable<string> enumerable = Create(new[] {"one", "two", "three"});
             
-            enumerable.Count().ShouldEqual(3);
+            enumerable.Count().ShouldBe(3);
 
             typeof (NotSupportedException).ShouldBeThrownBy(() => enumerable.Count());
         }
@@ -71,7 +62,7 @@ namespace AutoMapper.UnitTests.Bug
             var source = new Source {Collection = Create(new[] {"one", "two", "three"})};
             var enumerable = config.CreateMapper().Map(source, new Destination());
 
-            enumerable.Collection.Count().ShouldEqual(3);
+            enumerable.Collection.Count().ShouldBe(3);
         }
 
         public static IEnumerable<T> Create<T>(IEnumerable<T> inner)

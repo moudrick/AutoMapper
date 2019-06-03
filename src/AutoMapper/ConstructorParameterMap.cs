@@ -1,70 +1,45 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Linq.Expressions;
+using System.Reflection;
 
 namespace AutoMapper
 {
-    using AutoMapper.Execution;
-    using System.Linq;
-    using System.Linq.Expressions;
-    using static System.Linq.Expressions.Expression;
-    using static ExpressionExtensions;
-    using System.Reflection;
-    using Configuration;
-    using Mappers;
-
-    public class ConstructorParameterMap
+    public class ConstructorParameterMap : DefaultMemberMap
     {
-        public ConstructorParameterMap(ParameterInfo parameter, MemberInfo[] sourceMembers, bool canResolve)
+        public ConstructorParameterMap(TypeMap typeMap, ParameterInfo parameter, IEnumerable<MemberInfo> sourceMembers,
+            bool canResolveValue)
         {
+            TypeMap = typeMap;
             Parameter = parameter;
-            SourceMembers = sourceMembers;
-            CanResolve = canResolve;
+            SourceMembers = sourceMembers.ToList();
+            CanResolveValue = canResolveValue;
         }
 
         public ParameterInfo Parameter { get; }
 
-        public MemberInfo[] SourceMembers { get; }
+        public override TypeMap TypeMap { get; }
 
-        public bool CanResolve { get; set; }
+        public override Type SourceType =>
+            CustomMapExpression?.Type
+            ?? CustomMapFunction?.Type
+            ?? (Parameter.IsOptional 
+                ? Parameter.ParameterType 
+                : SourceMembers.Last().GetMemberType());
 
-        public bool DefaultValue { get; private set; }
+        public override Type DestinationType => Parameter.ParameterType;
 
-        public LambdaExpression CustomExpression { get; set; }
+        public override IEnumerable<MemberInfo> SourceMembers { get; }
+        public override string DestinationName => Parameter.Member.DeclaringType + "." + Parameter.Member + ".parameter " + Parameter.Name;
 
-        public LambdaExpression CustomValueResolver { get; set; }
+        public bool HasDefaultValue => Parameter.IsOptional;
 
-        public Type DestinationType => Parameter.ParameterType;
+        public override LambdaExpression CustomMapExpression { get; set; }
+        public override LambdaExpression CustomMapFunction { get; set; }
 
-        public Expression CreateExpression(TypeMapPlanBuilder builder)
-        {
-            var valueResolverExpression = ResolveSource(builder.Source, builder.Context);
-            var sourceType = valueResolverExpression.Type;
-            var resolvedValue = Variable(sourceType, "resolvedValue");            
-            return Block(new[] { resolvedValue },
-                Assign(resolvedValue, valueResolverExpression),
-                builder.MapExpression(new TypePair(sourceType, DestinationType), resolvedValue));
-        }
+        public override bool CanResolveValue { get; set; }
 
-        private Expression ResolveSource(ParameterExpression sourceParameter, ParameterExpression contextParameter)
-        {
-            if(CustomExpression != null)
-            {
-                return CustomExpression.ConvertReplaceParameters(sourceParameter).IfNotNull(DestinationType);
-            }
-            if(CustomValueResolver != null)
-            {
-                return CustomValueResolver.ConvertReplaceParameters(sourceParameter, contextParameter);
-            }
-            if(Parameter.IsOptional)
-            {
-                DefaultValue = true;
-                return Constant(Parameter.GetDefaultValue(), Parameter.ParameterType);
-            }
-            return SourceMembers.Aggregate(
-                            (Expression) sourceParameter,
-                            (inner, getter) => getter is MethodInfo
-                                ? Call(getter.IsStatic() ? null : inner, (MethodInfo) getter)
-                                : (Expression) MakeMemberAccess(getter.IsStatic() ? null : inner, getter)
-                      ).IfNotNull(DestinationType);
-        }
+        public override bool Inline { get; set; }
     }
 }

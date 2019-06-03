@@ -2,7 +2,7 @@ using System;
 using System.Linq.Expressions;
 using System.Reflection;
 using System.Reflection.Emit;
-using Should;
+using Shouldly;
 using Xunit;
 
 namespace AutoMapper.UnitTests
@@ -11,20 +11,6 @@ namespace AutoMapper.UnitTests
 
     public class DelegateFactoryTests
     {
-        protected DelegateFactory DelegateFactory => new DelegateFactory();
-
-        [Fact]
-        public void MethodTests()
-        {
-            MethodInfo method = typeof(String).GetMethod("StartsWith", new[] { typeof(string) });
-            LateBoundMethod<object, bool> callback = DelegateFactory.CreateGet<bool>(method).Compile();
-
-            string foo = "this is a test";
-            bool result = callback(foo, new[] { "this" });
-
-            result.ShouldBeTrue();
-        }
-
         internal delegate void DoIt3(ref ValueSource source, string value);
 
         private void SetValue(object thing, object value)
@@ -38,11 +24,11 @@ namespace AutoMapper.UnitTests
         {
             var sourceType = typeof(Source);
 
-            LateBoundCtor ctor = DelegateFactory.CreateCtor(sourceType);
+            Func<object> ctor = DelegateFactory.CreateCtor(sourceType);
 
             var target = ctor();
 
-            target.ShouldBeType<Source>();
+            target.ShouldBeOfType<Source>();
         }
 
         [Fact]
@@ -50,18 +36,18 @@ namespace AutoMapper.UnitTests
         {
             var sourceType = typeof(ValueSource);
 
-            LateBoundCtor ctor = DelegateFactory.CreateCtor(sourceType);
+            Func<object> ctor = DelegateFactory.CreateCtor(sourceType);
 
             var target = ctor();
 
-            target.ShouldBeType<ValueSource>();
+            target.ShouldBeOfType<ValueSource>();
         }
 
         [Fact]
         public void Create_ctor_should_throw_when_default_constructor_is_missing()
         {
             var type = typeof(NoDefaultConstructor);
-            new Action(()=>DelegateFactory.CreateCtor(type)()).ShouldThrow<ArgumentException>(ex=>
+            new Action(()=>DelegateFactory.CreateCtor(type)()).ShouldThrowException<ArgumentException>(ex=>
             {
                 ex.Message.ShouldStartWith(type.FullName);
             });

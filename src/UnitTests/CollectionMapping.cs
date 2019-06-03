@@ -4,11 +4,229 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using Xunit;
-using Should;
+using Shouldly;
 using System.Collections;
+using System.Reflection;
 
 namespace AutoMapper.UnitTests
 {
+    public class When_mapping_to_existing_observable_collection : AutoMapperSpecBase
+    {
+        class CollectionHolder
+        {
+            public CollectionHolder()
+            {
+                Observable = new ObservableCollection<List<int>>();
+            }
+
+            public ObservableCollection<List<int>> Observable { get; set; }
+        }
+
+        class CollectionHolderDto
+        {
+            public CollectionHolderDto()
+            {
+                Observable = new List<List<int>>();
+            }
+
+            public List<List<int>> Observable { get; set; }
+        }
+
+        protected override MapperConfiguration Configuration => new MapperConfiguration(cfg => cfg.CreateMap<CollectionHolderDto, CollectionHolder>().ForMember(a => a.Observable, opt => opt.UseDestinationValue()));
+
+        [Fact]
+        public void Should_map_ok()
+        {
+            var ch = new CollectionHolderDto();
+            var list = new List<int>{ 5, 6 };
+            ch.Observable.Add(list);
+            var mapped = Mapper.Map<CollectionHolder>(ch);
+            mapped.Observable.Single().ShouldBe(list);
+        }
+    }
+
+    public class When_mapping_to_member_typed_as_IEnumerable : AutoMapperSpecBase
+    {
+        public class SourceItem { }
+        public class DestItem { }
+        public class SourceA
+        {
+            public IEnumerable<SourceItem> Items { get; set; }
+            public IEnumerable<SourceB> Bs { get; set; } // Problem
+        }
+
+        public class SourceB
+        {
+            public IEnumerable<SourceItem> Items { get; set; }
+        }
+
+        public class DestA
+        {
+            public IEnumerable<DestItem> Items { get; set; }
+            public IEnumerable<DestB> Bs { get; set; } // Problem
+        }
+
+        public class DestB
+        {
+            public IEnumerable<DestItem> Items { get; set; }
+        }
+
+        protected override MapperConfiguration Configuration => new MapperConfiguration(cfg=>
+        {
+            cfg.CreateMap<SourceA, DestA>();
+            cfg.CreateMap<SourceB, DestB>();
+        });
+
+        [Fact]
+        public void Should_map_ok()
+        {
+            Mapper.Map<DestB>(new SourceB()).Items.ShouldBeEmpty();
+        }
+    }
+    
+    public class When_mapping_to_existing_collection_typed_as_IEnumerable : AutoMapperSpecBase
+    {
+        protected override MapperConfiguration Configuration => new MapperConfiguration(_=>{ });
+
+        [Fact]
+        public void Should_map_ok()
+        {
+            IEnumerable<int> destination = new List<int>();
+            var source = Enumerable.Range(1, 10).ToArray();
+            Mapper.Map(source, destination);
+            destination.SequenceEqual(source).ShouldBeTrue();
+        }
+    }
+
+    public class When_mapping_to_readonly_property_as_IEnumerable_and_existing_destination : AutoMapperSpecBase
+    {
+        public class Source
+        {
+            private readonly List<string> _myCollection = new List<string> { "one", "two" };
+
+            public string[] MyCollection => _myCollection.ToArray();
+        }
+
+        public class Destination
+        {
+            private IList<string> _myCollection = new List<string>();
+            public IEnumerable<string> MyCollection => _myCollection;
+        }
+
+        protected override MapperConfiguration Configuration => new MapperConfiguration(cfg =>
+            cfg.CreateMap<Source, Destination>().ForMember(m => m.MyCollection, opt =>
+            {
+                opt.MapFrom(src => src.MyCollection);
+            }));
+
+        [Fact]
+        public void Should_map_ok()
+        {
+            Mapper.Map(new Source(), new Destination())
+                .MyCollection.SequenceEqual(new[] { "one", "two" }).ShouldBeTrue();
+        }
+    }
+
+    public class When_mapping_to_readonly_property_UseDestinationValue : AutoMapperSpecBase
+    {
+        public class Source
+        {
+            private readonly List<string> _myCollection = new List<string> { "one", "two" };
+
+            public string[] MyCollection => _myCollection.ToArray();
+        }
+
+        public class Destination
+        {
+            private IList<string> _myCollection = new List<string>();
+            public IEnumerable<string> MyCollection => _myCollection;
+        }
+
+        protected override MapperConfiguration Configuration => new MapperConfiguration(cfg =>
+            cfg.CreateMap<Source, Destination>().ForMember(m => m.MyCollection, opt =>
+            {
+                opt.MapFrom(src => src.MyCollection);
+            }));
+
+        [Fact]
+        public void Should_map_ok()
+        {
+            Mapper.Map<Destination>(new Source())
+                .MyCollection.SequenceEqual(new[] { "one", "two" }).ShouldBeTrue();
+        }
+    }
+
+    public class When_mapping_to_readonly_property_as_IEnumerable : AutoMapperSpecBase
+    {
+        public class Source
+        {
+            private readonly List<string> _myCollection = new List<string> { "one", "two" };
+
+            public string[] MyCollection => _myCollection.ToArray();
+        }
+
+        public class Destination
+        {
+            private IList<string> _myCollection = new List<string>();
+            public IEnumerable<string> MyCollection => _myCollection;
+        }
+
+        protected override MapperConfiguration Configuration => new MapperConfiguration(cfg => 
+            cfg.CreateMap<Source, Destination>().ForMember(m => m.MyCollection, opt =>
+                {
+                    opt.MapFrom(src => src.MyCollection);
+                    opt.UseDestinationValue();
+                }));
+
+        [Fact]
+        public void Should_map_ok()
+        {
+            Mapper.Map<Destination>(new Source())
+                .MyCollection.SequenceEqual(new[] { "one", "two" }).ShouldBeTrue();
+        }
+    }
+
+    public class When_mapping_from_struct_collection : AutoMapperSpecBase
+    {
+        public struct MyCollection : IEnumerable<int>
+        {
+            public IEnumerator<int> GetEnumerator()
+            {
+                for(int i = 1; i <= 10; i++)
+                {
+                    yield return i;
+                }
+            }
+
+            IEnumerator IEnumerable.GetEnumerator()
+            {
+                return GetEnumerator();
+            }
+        }
+
+        public class SourceItem
+        {
+            public string Name { get; set; }
+            public MyCollection ShipsTo { get; set; }
+        }
+
+        public class DestItem
+        {
+            public string Name { get; set; }
+            public List<int> ShipsTo { get; set; }
+        }
+
+        protected override MapperConfiguration Configuration =>
+            new MapperConfiguration(cfg => cfg.CreateMap<SourceItem, DestItem>());
+
+        [Fact]
+        public void Should_map_ok()
+        {
+            Mapper.Map<DestItem>(new SourceItem { ShipsTo = new MyCollection() })
+                .ShipsTo.SequenceEqual(Enumerable.Range(1, 10)).ShouldBeTrue();
+        }
+    }
+
     public class When_mapping_to_custom_collection_type : AutoMapperSpecBase
     {
         public class MyCollection : CollectionBase
@@ -58,17 +276,19 @@ namespace AutoMapper.UnitTests
         }
 
         protected override MapperConfiguration Configuration => 
-            new MapperConfiguration(cfg => cfg.CreateMap<SourceItem, DestItem>());
+            new MapperConfiguration(cfg =>
+            {
+                cfg.CreateMap<SourceItem, DestItem>();
+                cfg.CreateMissingTypeMaps = false;
+            });
 
         [Fact]
         public void Should_report_missing_map()
         {
-            new Action(Configuration.AssertConfigurationIsValid).ShouldThrow<AutoMapperConfigurationException>(ex =>
+            new Action(Configuration.AssertConfigurationIsValid).ShouldThrowException<AutoMapperConfigurationException>(ex =>
             {
-                ex.PropertyMap.SourceMember.Name.ShouldEqual("ShipsTo");
-                var types = ex.Types.Value;
-                types.SourceType.ShouldEqual(typeof(List<string>));
-                types.DestinationType.ShouldEqual(typeof(MyCollection));
+                ex.MemberMap.SourceMember.ShouldBe(typeof(SourceItem).GetProperty("ShipsTo"));
+                ex.Types.Value.ShouldBe(new TypePair(typeof(SourceItem), typeof(DestItem)));
             });
         } 
     }
@@ -179,16 +399,6 @@ namespace AutoMapper.UnitTests
 
     public class CollectionMapping
     {
-        public CollectionMapping()
-        {
-            SetUp();
-        }
-        public void SetUp()
-        {
-            
-        }
-
-
         public class MasterWithList
         {
             private IList<Detail> _details = new List<Detail>();
@@ -278,7 +488,7 @@ namespace AutoMapper.UnitTests
             config.CreateMapper().Map(dto, master);
 
             originalCollection.ShouldBeSameAs(master.Details);
-            originalCollection.Count.ShouldEqual(master.Details.Count);
+            originalCollection.Count.ShouldBe(master.Details.Count);
         }
 
         [Fact]
@@ -307,7 +517,7 @@ namespace AutoMapper.UnitTests
             config.CreateMapper().Map(dto, master);
 
             originalCollection.ShouldBeSameAs(master.Details);
-            originalCollection.Count.ShouldEqual(master.Details.Count);
+            originalCollection.Count.ShouldBe(master.Details.Count);
         }
 
         [Fact]
@@ -339,7 +549,7 @@ namespace AutoMapper.UnitTests
             mapper.Map(dto, master);
 
             originalCollection.ShouldBeSameAs(master.Details);
-            originalCollection.Count.ShouldEqual(master.Details.Count);
+            originalCollection.Count.ShouldBe(master.Details.Count);
         }
 
         [Fact]
@@ -368,7 +578,7 @@ namespace AutoMapper.UnitTests
             config.CreateMapper().Map(dto, master);
 
             originalCollection.ShouldBeSameAs(master.Details);
-            originalCollection.Count.ShouldEqual(master.Details.Count);
+            originalCollection.Count.ShouldBe(master.Details.Count);
         }
 
         [Fact]
@@ -421,7 +631,7 @@ namespace AutoMapper.UnitTests
 
             var master = config.CreateMapper().Map<MasterDto, MasterWithNoExistingCollection>(dto);
 
-            master.Details.Count.ShouldEqual(2);
+            master.Details.Count.ShouldBe(2);
         }
 
         [Fact]
@@ -462,6 +672,52 @@ namespace AutoMapper.UnitTests
             var mappedCollection = config.CreateMapper().Map<NameValueCollection, NameValueCollection>(c);
 
             mappedCollection.ShouldNotBeNull();
+        }
+    }
+
+    public class When_mapping_from_ICollection_types_but_implementations_are_different : AutoMapperSpecBase
+    {
+        public class Source
+        {
+            public ICollection<Item> Items { get; set; }
+
+            public class Item
+            {
+                public int Value { get; set; }
+            }
+        }
+        public class Dest
+        {
+            public ICollection<Item> Items { get; set; } = new HashSet<Item>();
+
+            public class Item
+            {
+                public int Value { get; set; }
+            }
+        }
+
+        protected override MapperConfiguration Configuration { get; } = new MapperConfiguration(cfg =>
+        {
+            cfg.CreateMap<Source, Dest>();
+            cfg.CreateMap<Source.Item, Dest.Item>();
+        });
+
+        [Fact]
+        public void Should_map_items()
+        {
+            var source = new Source
+            {
+                Items = new List<Source.Item>
+                {
+                    new Source.Item { Value = 5 }
+                }
+            };
+            var dest = new Dest();
+
+            Mapper.Map(source, dest);
+
+            dest.Items.Count.ShouldBe(1);
+            dest.Items.First().Value.ShouldBe(5);
         }
     }
 
@@ -513,12 +769,12 @@ namespace AutoMapper.UnitTests
 
             var dest = Mapper.Map<Source, Target>(src);
 
-            src.X.ShouldEqual(dest.X);
+            src.X.ShouldBe(dest.X);
 
-            dest.Items.Length.ShouldEqual(3);
-            dest.Items[0].I.ShouldEqual(1);
-            dest.Items[1].I.ShouldEqual(2);
-            dest.Items[2].I.ShouldEqual(3);
+            dest.Items.Length.ShouldBe(3);
+            dest.Items[0].I.ShouldBe(1);
+            dest.Items[1].I.ShouldBe(2);
+            dest.Items[2].I.ShouldBe(3);
         }
     }
 }

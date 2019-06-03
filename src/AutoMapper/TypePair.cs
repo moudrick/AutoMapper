@@ -1,28 +1,35 @@
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
+using System.Reflection;
+using AutoMapper.Configuration;
+
 namespace AutoMapper
 {
-    using System;
-    using System.Collections.Generic;
-    using System.Diagnostics;
-    using System.Linq;
-    using System.Reflection;
-    using Configuration;
-
     [DebuggerDisplay("{RequestedTypes.SourceType.Name}, {RequestedTypes.DestinationType.Name} : {RuntimeTypes.SourceType.Name}, {RuntimeTypes.DestinationType.Name}")]
     public struct MapRequest : IEquatable<MapRequest>
     {
         public TypePair RequestedTypes { get; }
         public TypePair RuntimeTypes { get; }
+        public ITypeMapConfiguration InlineConfig { get; }
+        public IMemberMap MemberMap { get; }
 
-        public MapRequest(TypePair requestedTypes, TypePair runtimeTypes)
+        public MapRequest(TypePair requestedTypes, TypePair runtimeTypes, IMemberMap memberMap = null) 
+            : this(requestedTypes, runtimeTypes, new MapperConfiguration.DefaultTypeMapConfig(requestedTypes), memberMap)
+        {
+        }
+
+        public MapRequest(TypePair requestedTypes, TypePair runtimeTypes, ITypeMapConfiguration inlineConfig, IMemberMap memberMap = null)
         {
             RequestedTypes = requestedTypes;
             RuntimeTypes = runtimeTypes;
+            InlineConfig = inlineConfig;
+            MemberMap = memberMap;
         }
 
-        public bool Equals(MapRequest other)
-        {
-            return RequestedTypes.Equals(other.RequestedTypes) && RuntimeTypes.Equals(other.RuntimeTypes);
-        }
+        public bool Equals(MapRequest other) => 
+            RequestedTypes.Equals(other.RequestedTypes) && RuntimeTypes.Equals(other.RuntimeTypes) && Equals(MemberMap, other.MemberMap);
 
         public override bool Equals(object obj)
         {
@@ -30,17 +37,19 @@ namespace AutoMapper
             return obj is MapRequest && Equals((MapRequest) obj);
         }
 
-        public override int GetHashCode() => HashCodeCombiner.Combine(RequestedTypes, RuntimeTypes);
-
-        public static bool operator ==(MapRequest left, MapRequest right)
+        public override int GetHashCode()
         {
-            return left.Equals(right);
+            var hashCode = HashCodeCombiner.Combine(RequestedTypes, RuntimeTypes);
+            if(MemberMap != null)
+            {
+                hashCode = HashCodeCombiner.Combine(hashCode, MemberMap.GetHashCode());
+            }
+            return hashCode;
         }
 
-        public static bool operator !=(MapRequest left, MapRequest right)
-        {
-            return !left.Equals(right);
-        }
+        public static bool operator ==(MapRequest left, MapRequest right) => left.Equals(right);
+
+        public static bool operator !=(MapRequest left, MapRequest right) => !left.Equals(right);
     }
 
     [DebuggerDisplay("{SourceType.Name}, {DestinationType.Name}")]
@@ -87,18 +96,37 @@ namespace AutoMapper
 
         public override int GetHashCode() => HashCodeCombiner.Combine(SourceType, DestinationType);
 
+        public bool IsGeneric => SourceType.IsGenericType || DestinationType.IsGenericType;
+
+        public bool IsGenericTypeDefinition => SourceType.IsGenericTypeDefinition || DestinationType.IsGenericTypeDefinition;
+
         public TypePair? GetOpenGenericTypePair()
         {
-            var isGeneric = SourceType.IsGenericType() || DestinationType.IsGenericType();
-            if (!isGeneric)
+            if(!IsGeneric)
+            {
                 return null;
-
+            }
             var sourceGenericDefinition = SourceType.IsGenericType() ? SourceType.GetGenericTypeDefinition() : SourceType;
-            var destGenericDefinition = DestinationType.IsGenericType() ? DestinationType.GetGenericTypeDefinition() : DestinationType;
+            var destinationGenericDefinition = DestinationType.IsGenericType() ? DestinationType.GetGenericTypeDefinition() : DestinationType;
 
-            var genericTypePair = new TypePair(sourceGenericDefinition, destGenericDefinition);
+            return new TypePair(sourceGenericDefinition, destinationGenericDefinition);
+        }
 
-            return genericTypePair;
+        public TypePair CloseGenericTypes(TypePair closedTypes)
+        {
+            var sourceArguments = closedTypes.SourceType.GetGenericArguments();
+            var destinationArguments = closedTypes.DestinationType.GetGenericArguments();
+            if(sourceArguments.Length == 0)
+            {
+                sourceArguments = destinationArguments;
+            }
+            else if(destinationArguments.Length == 0)
+            {
+                destinationArguments = sourceArguments;
+            }
+            var closedSourceType = SourceType.IsGenericTypeDefinition() ? SourceType.MakeGenericType(sourceArguments) : SourceType;
+            var closedDestinationType = DestinationType.IsGenericTypeDefinition() ? DestinationType.MakeGenericType(destinationArguments) : DestinationType;
+            return new TypePair(closedSourceType, closedDestinationType);
         }
 
         public IEnumerable<TypePair> GetRelatedTypePairs()
@@ -106,14 +134,14 @@ namespace AutoMapper
             var @this = this;
             var subTypePairs =
                 from destinationType in GetAllTypes(DestinationType)
-                from sourceType in @this.GetAllTypes(@this.SourceType)
+                from sourceType in GetAllTypes(@this.SourceType)
                 select new TypePair(sourceType, destinationType);
             return subTypePairs;
         }
 
-        private IEnumerable<Type> GetAllTypes(Type type)
+        private static IEnumerable<Type> GetAllTypes(Type type)
         {
-            var typeInheritance = GetTypeInheritance(type);
+            var typeInheritance = type.GetTypeInheritance();
             foreach(var item in typeInheritance)
             {
                 yield return item;
@@ -126,25 +154,13 @@ namespace AutoMapper
             }
         }
 
-        private static IEnumerable<Type> GetTypeInheritance(Type type)
-        {
-            yield return type;
-
-            Type baseType = type.BaseType();
-            while (baseType != null)
-            {
-                yield return baseType;
-                baseType = baseType.BaseType();
-            }
-        }
-
         private class InterfaceComparer : IComparer<Type>
         {
             private readonly List<TypeInfo> _typeInheritance;
 
             public InterfaceComparer(Type target)
             {
-                _typeInheritance = GetTypeInheritance(target).Select(type => type.GetTypeInfo()).Reverse().ToList();
+                _typeInheritance = target.GetTypeInheritance().Select(type => type.GetTypeInfo()).Reverse().ToList();
             }
 
             public int Compare(Type x, Type y)

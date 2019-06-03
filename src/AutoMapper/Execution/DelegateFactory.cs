@@ -1,65 +1,67 @@
+using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.Linq;
+using System.Linq.Expressions;
 using AutoMapper.Configuration;
+using AutoMapper.Mappers.Internal;
 
 namespace AutoMapper.Execution
 {
-    using System;
-    using System.Collections.Concurrent;
-    using System.Collections.Generic;
-    using System.Linq;
-    using System.Linq.Expressions;
-    using System.Reflection;
-    using System.Runtime.CompilerServices;
-    using static System.Linq.Expressions.Expression;
+    using static Expression;
+    using static Internal.ExpressionFactory;
+    using static ElementTypeHelper;
 
-    public class DelegateFactory
+    public static class DelegateFactory
     {
-        private readonly LockingConcurrentDictionary<Type, LateBoundCtor> _ctorCache = new LockingConcurrentDictionary<Type, LateBoundCtor>(GenerateConstructor);
+        private static readonly LockingConcurrentDictionary<Type, Func<object>> CtorCache = new LockingConcurrentDictionary<Type, Func<object>>(GenerateConstructor);
 
-        public Expression<LateBoundMethod<object, TValue>> CreateGet<TValue>(MethodInfo method)
-        {
-            ParameterExpression instanceParameter = Parameter(typeof(object), "target");
-            ParameterExpression argumentsParameter = Parameter(typeof (object[]), "arguments");
+        public static Func<object> CreateCtor(Type type) => CtorCache.GetOrAdd(type);
 
-            MethodCallExpression call;
-            if (!method.IsDefined(typeof (ExtensionAttribute), false))
-            {
-                // instance member method
-                call = Call(Convert(instanceParameter, method.DeclaringType), method,
-                    CreateParameterExpressions(method, instanceParameter, argumentsParameter));
-            }
-            else
-            {
-                // static extension method
-                call = Call(
-                    method,
-                    CreateParameterExpressions(method, instanceParameter, argumentsParameter));
-            }
-
-            Expression<LateBoundMethod<object, TValue>> lambda = Lambda<LateBoundMethod<object, TValue>>(
-                call,
-                instanceParameter,
-                argumentsParameter);
-
-            return lambda;
-        }
-
-        public LateBoundCtor CreateCtor(Type type)
-        {
-            return _ctorCache.GetOrAdd(type);
-        }
-
-        private static LateBoundCtor GenerateConstructor(Type type)
+        private static Func<object> GenerateConstructor(Type type)
         {
             var ctorExpr = GenerateConstructorExpression(type);
 
-            return Lambda<LateBoundCtor>(Convert(ctorExpr, typeof (object))).Compile();
+            return Lambda<Func<object>>(Convert(ctorExpr, typeof(object))).Compile();
         }
+
+        public static Expression GenerateConstructorExpression(Type type, ProfileMap configuration) =>
+            configuration.AllowNullDestinationValues
+                ? GenerateConstructorExpression(type)
+                : GenerateNonNullConstructorExpression(type);
+
+        public static Expression GenerateNonNullConstructorExpression(Type type) => type.IsValueType()
+            ? Default(type)
+            : (type == typeof(string)
+                ? Constant(string.Empty)
+                : GenerateConstructorExpression(type)
+            );
 
         public static Expression GenerateConstructorExpression(Type type)
         {
-            if(type.IsValueType())
+            if (type.IsValueType())
             {
-                return Convert(New(type), typeof(object));
+                return Default(type);
+            }
+
+            if (type == typeof(string))
+            {
+                return Constant(null, typeof(string));
+            }
+
+            if (type.IsInterface())
+            {
+                return
+                    type.IsDictionaryType() ? CreateCollection(type, typeof(Dictionary<,>))
+                    : type.IsReadOnlyDictionaryType() ? CreateReadOnlyCollection(type, typeof(ReadOnlyDictionary<,>))
+                    : type.IsSetType() ? CreateCollection(type, typeof(HashSet<>))
+                    : type.IsEnumerableType() ? CreateCollection(type, typeof(List<>))
+                    : InvalidType(type, $"Cannot create an instance of interface type {type}.");
+            }
+
+            if (type.IsAbstract())
+            {
+                return InvalidType(type, $"Cannot create an instance of abstract type {type}.");
             }
 
             var constructors = type
@@ -68,10 +70,9 @@ namespace AutoMapper.Execution
 
             //find a ctor with only optional args
             var ctorWithOptionalArgs = constructors.FirstOrDefault(c => c.GetParameters().All(p => p.IsOptional));
-            if(ctorWithOptionalArgs == null)
+            if (ctorWithOptionalArgs == null)
             {
-                var ex = new ArgumentException(type + " needs to have a constructor with 0 args or only optional args", "type");
-                return Block(Throw(Constant(ex)), Constant(null));
+                return InvalidType(type, $"{type} needs to have a constructor with 0 args or only optional args.");
             }
             //get all optional default values
             var args = ctorWithOptionalArgs
@@ -82,24 +83,30 @@ namespace AutoMapper.Execution
             return New(ctorWithOptionalArgs, args);
         }
 
-        private static Expression[] CreateParameterExpressions(MethodInfo method, Expression instanceParameter,
-            Expression argumentsParameter)
+        private static Expression CreateCollection(Type type, Type collectionType)
         {
-            var expressions = new List<UnaryExpression>();
-            var realMethodParameters = method.GetParameters();
-            if (method.IsDefined(typeof (ExtensionAttribute), false))
-            {
-                Type extendedType = method.GetParameters()[0].ParameterType;
-                expressions.Add(Convert(instanceParameter, extendedType));
-                realMethodParameters = realMethodParameters.Skip(1).ToArray();
-            }
+            var listType = collectionType.MakeGenericType(GetElementTypes(type, ElementTypeFlags.BreakKeyValuePair));
+            if (type.IsAssignableFrom(listType))
+                return ToType(New(listType), type);
 
-            expressions.AddRange(realMethodParameters.Select((parameter, index) =>
-                Convert(
-                    ArrayIndex(argumentsParameter, Constant(index)),
-                    parameter.ParameterType)));
+            return InvalidType(type, $"Cannot create an instance of interface type {type}.");
+        }
 
-            return expressions.ToArray();
+        private static Expression CreateReadOnlyCollection(Type type, Type collectionType)
+        {
+            var listType = collectionType.MakeGenericType(GetElementTypes(type, ElementTypeFlags.BreakKeyValuePair));
+            var ctor = listType.GetConstructors()[0];
+            var innerType = ctor.GetParameters()[0].ParameterType;
+            if (type.IsAssignableFrom(listType))
+                return ToType(New(ctor, GenerateConstructorExpression(innerType)), type);
+
+            return InvalidType(type, $"Cannot create an instance of interface type {type}.");
+        }
+
+        private static Expression InvalidType(Type type, string message)
+        {
+            var ex = new ArgumentException(message, "type");
+            return Block(Throw(Constant(ex)), Constant(null, type));
         }
     }
 }

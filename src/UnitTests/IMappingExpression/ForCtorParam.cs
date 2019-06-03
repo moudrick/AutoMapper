@@ -1,6 +1,6 @@
 ﻿using System;
 using Xunit;
-using Should;
+using Shouldly;
 
 namespace AutoMapper.UnitTests
 {
@@ -37,14 +37,14 @@ namespace AutoMapper.UnitTests
         {
             var dest = Mapper.Map<Source, Dest>(new Source { Value = 5 });
 
-            dest.Value1.ShouldEqual(5);
+            dest.Value1.ShouldBe(5);
         }
 
         [Fact]
         public void Should_resolve_using_custom_func()
         {
             var mapper = new MapperConfiguration(
-                cfg => cfg.CreateMap<Source, Dest>().ForCtorParam("thing", opt => opt.ResolveUsing(src =>
+                cfg => cfg.CreateMap<Source, Dest>().ForCtorParam("thing", opt => opt.MapFrom((src, ctxt) =>
                 {
                     var rev = src.Value + 3;
                     return rev;
@@ -53,7 +53,7 @@ namespace AutoMapper.UnitTests
 
             var dest = mapper.Map<Source, Dest>(new Source { Value = 5 });
 
-            dest.Value1.ShouldEqual(8);
+            dest.Value1.ShouldBe(8);
         }
 
         [Fact]
@@ -62,14 +62,14 @@ namespace AutoMapper.UnitTests
             const string itemKey = "key";
             var mapper = new MapperConfiguration(
                 cfg => cfg.CreateMap<Source, Dest>().ForCtorParam("thing", opt =>
-                    opt.ResolveUsing((src, ctx) => ctx.Items[itemKey])
+                    opt.MapFrom((src, ctx) => ctx.Items[itemKey])
                 ))
                 .CreateMapper();
 
             var dest = mapper.Map<Source, Dest>(new Source { Value = 8 },
                 opts => opts.Items[itemKey] = 10);
 
-            dest.Value1.ShouldEqual(10);
+            dest.Value1.ShouldBe(10);
         }
 
         [Fact]
@@ -81,10 +81,10 @@ namespace AutoMapper.UnitTests
                     .ForCtorParam("thing", opt => opt.MapFrom(src => src.Value))
                     .ForCtorParam("think", opt => opt.MapFrom(src => src.Value));
             });
-            configuration.ShouldThrow<AutoMapperConfigurationException>(exception =>
+            configuration.ShouldThrowException<AutoMapperConfigurationException>(exception =>
             {
-                exception.Message.ShouldContain("does not have a constructor with a parameter named 'think'.", StringComparison.InvariantCulture);
-                exception.Message.ShouldContain(typeof(Dest).FullName, StringComparison.InvariantCulture);
+                exception.Message.ShouldContain("does not have a constructor with a parameter named 'think'.", Case.Sensitive);
+                exception.Message.ShouldContain(typeof(Dest).FullName, Case.Sensitive);
             });
         }
 
@@ -98,10 +98,10 @@ namespace AutoMapper.UnitTests
                     .ForCtorParam("thing", opt => opt.MapFrom(src => src.Value));
             });
 
-            configuration.ShouldThrow<AutoMapperConfigurationException>(exception =>
+            configuration.ShouldThrowException<AutoMapperConfigurationException>(exception =>
             {
-                exception.Message.ShouldContain("does not have a constructor.", StringComparison.InvariantCulture);
-                exception.Message.ShouldContain(typeof(Dest).FullName, StringComparison.InvariantCulture);
+                exception.Message.ShouldContain("does not have a constructor.", Case.Sensitive);
+                exception.Message.ShouldContain(typeof(Dest).FullName, Case.Sensitive);
             });
         }
 
@@ -114,10 +114,10 @@ namespace AutoMapper.UnitTests
                     .ForCtorParam("think", opt => opt.MapFrom(src => src.Value));
             });
 
-            configuration.ShouldThrow<AutoMapperConfigurationException>(exception =>
+            configuration.ShouldThrowException<AutoMapperConfigurationException>(exception =>
             {
-                exception.Message.ShouldContain("does not have a constructor with a parameter named 'think'.", StringComparison.InvariantCulture);
-                exception.Message.ShouldContain(typeof(Dest).FullName, StringComparison.InvariantCulture);
+                exception.Message.ShouldContain("does not have a constructor with a parameter named 'think'.", Case.Sensitive);
+                exception.Message.ShouldContain(typeof(Dest).FullName, Case.Sensitive);
             });
         }
     }
